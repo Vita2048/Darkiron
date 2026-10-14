@@ -10,7 +10,8 @@ var bullets: Array = []
 var grenades: Array = []
 var particles: Array = []
 var blast_flashes: Array = []
-var platforms: Array[Rect2] = [Rect2(-200,720,6800,220),Rect2(1150,480,1600,44),Rect2(3300,480,600,44),Rect2(5000,480,1200,44),Rect2(410,657,115,63),Rect2(2920,655,110,65)]
+var equipment = preload("res://assets/cinderworks-equipment.png")
+var platforms: Array[Rect2] = [Rect2(-200,720,610,220),Rect2(525,720,2395,220),Rect2(3030,720,3570,220),Rect2(1150,480,1600,44),Rect2(3300,480,600,44),Rect2(5000,480,1200,44)]
 var ladders := [Vector3(1250,480,720),Vector3(3400,480,720),Vector3(5100,480,720)]
 var barriers: Array = []
 var caches := [{"p":Vector2(1550,480),"cooldown":0.0},{"p":Vector2(3780,720),"cooldown":0.0},{"p":Vector2(3700,480),"cooldown":0.0}]
@@ -49,7 +50,7 @@ func _ready() -> void:
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	window.content_scale_factor = 1.0
-	window.title = "DARKIRON — The Cinderworks / Edition 13"
+	window.title = "DARKIRON — The Cinderworks / Edition 14"
 	# Shared smooth falloff: two textured glow draws per projectile, no lights.
 	bullet_glow = GradientTexture2D.new()
 	bullet_glow.width = 128
@@ -320,7 +321,13 @@ func throw_grenade(actor: CharacterBody2D) -> void:
 	sound("jump")
 
 func explode(at: Vector2) -> void:
-	blast_flashes.append({"p":at,"life":0.55})
+	var effect := preload("res://scripts/blast_effect.gd").new()
+	effect.world = self
+	effect.position = at
+	for platform in platforms:
+		if at.x >= platform.position.x and at.x <= platform.end.x and platform.position.y >= at.y-12 and platform.position.y-at.y < 210:
+			effect.floor_offset = minf(effect.floor_offset,platform.position.y-at.y)
+	add_child(effect)
 	burst(at,Color("ffb45d"),65)
 	burst(at,Color("a5c4d5"),20)
 	shake = 12
@@ -364,9 +371,10 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO,2.4,Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
 	for g in grenades:
-		draw_circle(g.p,7,Color("1b2633"))
-		draw_arc(g.p,7,0,TAU,12,Color("a8afb1"),2,true)
-		_glow(g.p,Color("ffab5d"),12 if sin(clock*24)>0 else 6)
+		draw_texture_rect(bullet_glow,Rect2(g.p-Vector2(25,25),Vector2(50,50)),false,Color(1,0.45,0.08,0.5+sin(clock*24)*0.25))
+		draw_set_transform(g.p,(1.45-g.fuse)*9)
+		draw_texture_rect_region(equipment,Rect2(-8,-15,16,30),Rect2(900,25,350,675))
+		draw_set_transform(Vector2.ZERO)
 	for p in particles:
 		var color: Color = p.c
 		color.a = minf(1,p.life*2)

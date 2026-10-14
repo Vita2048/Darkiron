@@ -3,6 +3,7 @@ extends Node2D
 var world: Node2D
 var backdrop = preload("res://assets/cinderworks-background.png")
 var masonry = preload("res://assets/cinderworks-platform.png")
+var equipment = preload("res://assets/cinderworks-equipment.png")
 var props = preload("res://assets/cinderworks-props.png")
 var stone_region := Rect2()
 var font: Font = ThemeDB.fallback_font
@@ -24,6 +25,11 @@ func visible_x(x: float,width := 0.0) -> bool:
 func _draw() -> void:
 	draw_texture_rect(backdrop,Rect2(world.camera_x*0.74-20,-50,2740,915),false,Color("bdc8d9"))
 	draw_rect(Rect2(world.camera_x,0,1440,900),Color(0.015,0.025,0.05,0.18))
+	for gap in [Vector2(410,525),Vector2(2920,3030)]:
+		draw_rect(Rect2(gap.x,720,gap.y-gap.x,400),Color("080d16"))
+		for edge in [gap.x-18,gap.y]:
+			draw_rect(Rect2(edge,720,18,7),Color("e6a354"))
+			draw_texture_rect(world.bullet_glow,Rect2(edge-12,710,40,35),false,Color(1,0.35,0.07,0.4))
 	for rect in world.platforms:
 		var x: float = rect.position.x
 		while x<rect.end.x:
@@ -37,12 +43,11 @@ func _draw() -> void:
 			x += width
 	for ladder in world.ladders:
 		if not visible_x(ladder.x,45): continue
-		for offset in [-23,23]:
-			draw_line(Vector2(ladder.x+offset,ladder.y-40),Vector2(ladder.x+offset,ladder.z),Color("101b24"),9)
-			draw_line(Vector2(ladder.x+offset-2,ladder.y-40),Vector2(ladder.x+offset-2,ladder.z),Color("9e9d8e"),3)
-		for y in range(int(ladder.y)-25,int(ladder.z),22):
-			draw_line(Vector2(ladder.x-23,y),Vector2(ladder.x+23,y),Color("1a252c"),8)
-			draw_line(Vector2(ladder.x-22,y-2),Vector2(ladder.x+22,y-2),Color("c0ad89"),3)
+		var y: float = ladder.y-40
+		while y<ladder.z:
+			var height := minf(93.3,ladder.z-y)
+			draw_texture_rect_region(equipment,Rect2(ladder.x-30,y,60,height),Rect2(182,40,418,650*height/93.3))
+			y += height
 	for barrier in world.barriers:
 		var rect: Rect2 = barrier.rect
 		if not visible_x(rect.position.x,rect.size.x): continue
@@ -62,9 +67,7 @@ func _draw() -> void:
 		if med.taken or not visible_x(med.p.x): continue
 		var at: Vector2 = med.p+Vector2(0,-26-sin(world.clock*2)*3)
 		draw_texture_rect(world.bullet_glow,Rect2(at-Vector2(24,24),Vector2(48,48)),false,Color("62ffc3"))
-		draw_rect(Rect2(at-Vector2(14,10),Vector2(28,20)),Color("263e3e"))
-		draw_rect(Rect2(at-Vector2(3,7),Vector2(6,14)),Color("b6ffdb"))
-		draw_rect(Rect2(at-Vector2(8,2),Vector2(16,4)),Color("b6ffdb"))
+		draw_texture_rect_region(equipment,Rect2(at-Vector2(28,22),Vector2(56,45)),Rect2(1395,95,745,600))
 	prop(3,Rect2(2750,525,100,195),Color.WHITE if world.checkpoint_active else Color("576d7c"))
 	label(Vector2(2730,510),"RELAY / CHECKPOINT",12,Color("86e0dc"))
 	prop(0,Rect2(5840,170,290,310))

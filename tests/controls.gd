@@ -81,7 +81,7 @@ func run() -> void:
 	Input.action_release("shoot")
 	Input.action_release("grenade")
 	var guard: CharacterBody2D = game.enemies[0]
-	guard.position = Vector2(480,720)
+	guard.position = Vector2(600,720)
 	guard.facing = -1
 	guard.fire()
 	await frames(20)
@@ -142,6 +142,7 @@ func run() -> void:
 	key(KEY_RIGHT,false)
 	await frames(20)
 	check(not p.running and absf(p.velocity.x)<1,"run ends cleanly on input release")
+	guard.position = Vector2(850,720)
 	guard.set_physics_process(true)
 	guard.take_damage(1000)
 	await frames(90)
@@ -154,4 +155,5 @@ func run() -> void:
 	game.queue_free()
 	await frames(3)
 	quit(0 if failures==0 else 1)
+
 

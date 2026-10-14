@@ -17,3 +17,9 @@ Use case: stylized-concept. Asset type: transparent 2x2 game prop atlas for a be
 ## Returned dimensions
 
 Background and platform: 2172×724. Prop atlas: 1254×1254. Requested dimensions are guidance; the returned images above are the actual in-game assets. Atlas coordinates are scaled from a 1280-unit reference grid. The platform's opaque upper edge begins around source y=145; runtime sampling omits the transparent top margin.
+
+## cinderworks-equipment.png — Edition 14
+
+Generated with the built-in image generation tool, transparent background. Returned 2172×724 PNG, copied unchanged into the project; runtime regions select individual props.
+
+Use case: stylized-concept. Asset type: transparent 3-column game prop atlas, three equally sized square cells in ONE horizontal row, 3:1 image. Original dark sci-fi fortress game, painterly realistic detailed materials, blue-black steel, bronze fittings. LEFT CELL: exactly one modular ladder segment, straight frontal orthographic view, two vertical parallel steel rails with THREE evenly spaced horizontal ridged bronze rungs, industrial rivets and worn edges, rails end square at top and bottom for vertical repetition, no floor and no wall, isolated. MIDDLE CELL: one compact cylindrical demolition grenade, copper armored ribs, dark steel body, bright amber glass core, detailed pin lever on top, no perspective floor, isolated. RIGHT CELL: one premium sci-fi medical supply case, ivory ceramic armored panels, dark steel frame, mint cyan luminous medical plus emblem, articulated latches, small cyan status lamps, handle on top, front view, isolated. Each object fully inside its own cell with generous transparent margins and no overlap. Crisp intricate readable game sprites, no lettering, no labels, no grid, no shadows outside silhouette, transparent background.

@@ -14,6 +14,9 @@ func _physics_process(dt: float) -> void:
 	velocity.y += 1100*dt
 	position += velocity*dt
 	rotation += dt*5
+	if position.y>1150:
+		queue_free()
+		return
 	for platform in world.platforms:
 		if position.x >= platform.position.x and position.x <= platform.end.x and previous.y <= platform.position.y-8 and position.y >= platform.position.y-8:
 			position.y = platform.position.y-8

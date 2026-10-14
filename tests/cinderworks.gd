@@ -22,6 +22,7 @@ func walk_to(x: float,shoot := true) -> void:
 	Input.action_release(direction)
 	Input.action_release("shoot")
 	await frames(10)
+	if game.player.health<=0: print("DIED at ",game.player.position," kills ",game.kills)
 	check(absf(game.player.position.x-x)<35,"route reaches x="+str(x))
 func climb() -> void:
 	if game.player.weapon_drawn: await press("toggle_weapon",20)
@@ -47,7 +48,7 @@ func run() -> void:
 	current_scene = game
 	await frames(15)
 	check(game.grenades_left==0,"begin with no bombs: pickups matter")
-	await walk_to(350)
+	await walk_to(385)
 	await jump_right()
 	await press("shoot",130)
 	await walk_to(1250)
@@ -64,7 +65,7 @@ func run() -> void:
 	check(game.seals_broken==1,"actual thrown bomb breaks first seal")
 	await walk_to(2630)
 	check(game.checkpoint_active,"relay checkpoint activates after first breach")
-	await walk_to(2850)
+	await walk_to(2895)
 	await frames(35)
 	await jump_right()
 	await press("shoot",130)
@@ -106,3 +107,4 @@ func run() -> void:
 	game.queue_free()
 	await frames(3)
 	quit(0 if failures==0 else 1)
+

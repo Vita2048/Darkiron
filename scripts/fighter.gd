@@ -24,6 +24,7 @@ var world: Node2D
 var rig: Node2D
 var patrol_origin := 0.0
 var ai_clock := 0.0
+var alert_time := 0.0
 
 func _ready() -> void:
 	var shape := CollisionShape2D.new()
@@ -139,17 +140,29 @@ func _end_climb() -> void:
 
 func _update_enemy(dt: float) -> void:
 	ai_clock += dt
-	var delta: Vector2 = world.player.position - position
-	var visible: bool = absf(delta.x) < 520 and absf(delta.y) < 85 and world.player.health > 0
-	if visible:
-		facing = signf(delta.x)
-		velocity.x = move_toward(velocity.x, 0, dt * 500)
-		if cooldown <= 0:
-			fire()
+	var delta: Vector2 = world.player.position-position
+	var sight: bool = absf(delta.y)<85 and absf(delta.x)<650 and world.player.health>0
+	for barrier in world.barriers:
+		if not barrier.destroyed and Geometry2D.segment_intersects_segment(position+Vector2(0,-100),world.player.position+Vector2(0,-100),barrier.rect.position,Vector2(barrier.rect.position.x,barrier.rect.end.y)) != null:
+			sight = false
+	if sight: alert_time = 8.0
+	else: alert_time = maxf(0,alert_time-dt)
+	var desired := 0.0
+	if alert_time>0 and world.player.health>0:
+		if absf(delta.x)>4: facing = signf(delta.x)
+		if absf(delta.x)>180: desired = facing*155.0
+		if sight and cooldown<=0: fire()
 	else:
-		velocity.x = sin(ai_clock * 0.6) * 40
-		if absf(velocity.x) > 5:
-			facing = signf(velocity.x)
+		desired = sin(ai_clock*0.6)*40
+		if absf(desired)>5: facing = signf(desired)
+	# Keep pursuit on the current connected platform, including braking distance.
+	var safe := false
+	var ahead := position+Vector2(signf(desired)*40,0)
+	for platform in world.platforms:
+		if ahead.x>platform.position.x+8 and ahead.x<platform.end.x-8 and absf(position.y-platform.position.y)<12:
+			safe = true
+	if not safe: desired = 0
+	velocity.x = move_toward(velocity.x,desired,dt*1000)
 
 func muzzle() -> Vector2:
 	var standing_lift: float = rig.stand_weight * (rig.standing_height()-76.0)
@@ -160,7 +173,7 @@ func muzzle() -> Vector2:
 func fire() -> void:
 	if not can_fire():
 		return
-	cooldown = 1.75 if enemy else 0.42
+	cooldown = 1.15 if enemy else 0.42
 	recoil = 1
 	world.fire_bullet(self)
 
@@ -169,6 +182,11 @@ func take_damage(amount: float) -> void:
 		return
 	health = maxf(0, health - amount)
 	hurt_flash = 0.15
+	if enemy and health>0:
+		var toward: float = world.player.position.x-position.x
+		if alert_time<=0 or toward*facing<0: cooldown = minf(cooldown,0.08)
+		if absf(toward)>1: facing = signf(toward)
+		alert_time = 8.0
 	world.burst(position + Vector2(0, -80), Color("ff9b56"), 12)
 	if not enemy:
 		world.shake = 5
@@ -189,4 +207,6 @@ func take_damage(amount: float) -> void:
 		world.sound("fall")
 		if enemy:
 			world.kills += 1
+
+
 
