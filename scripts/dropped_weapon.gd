@@ -1,10 +1,11 @@
 extends Node2D
 var world: Node2D
+var drake := false
 var velocity := Vector2.ZERO
 var settled := false
 func _ready() -> void:
 	var art := preload("res://scripts/vector_part.gd").new()
-	art.configure(2)
+	art.configure(2,drake)
 	art.scale = Vector2(0.99,0.29)
 	add_child(art)
 func _physics_process(dt: float) -> void:

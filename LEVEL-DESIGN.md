@@ -12,7 +12,7 @@ An original dark-fantasy refinery escape, built around deliberate movement, cove
 
 ## Recovery and pacing
 
-Caches grant three bombs when inventory is below three, then recharge for 12 seconds. This prevents missed throws from creating a permanent dead end. Medkits are automatic, single-use, and only consumed when injured. Bombs do not damage the hero in this iteration. ENTER after death returns to the latest relay with full health while preserving broken seals and defeated guards. R restarts the entire level.
+Caches grant three bombs when inventory is at most three (capacity six), then disappear permanently until a full restart. Collection persists through checkpoint recovery. Medkits are automatic, single-use, and only consumed when injured. Bombs do not damage the hero in this iteration. ENTER after death returns to the latest relay with full health while preserving broken seals and defeated guards. R restarts the entire level.
 
 ## Visuals
 
@@ -20,7 +20,7 @@ Three generated raster assets supply the gorge/refinery panorama, masonry catwal
 
 ## Validation
 
-`tests/cinderworks.gd` uses actual movement, combat, ladder and grenade inputs to traverse the complete route, checks pickup progression, bullet-resistant seals, both bomb breaches, the optional route, checkpoint recovery and replenishment. `-- --visual` additionally captures gallery, alcove, yard and gate screenshots. `tests/playthrough.gd` aliases this current-level test. The controls and gait suites remain separate.
+`tests/cinderworks.gd` uses actual movement, combat, ladder and grenade inputs to traverse the complete route, checks pickup progression, bullet-resistant seals, both bomb breaches, the optional route, checkpoint recovery and single-use pickup persistence. `-- --visual` additionally captures gallery, alcove, yard and gate screenshots. `tests/playthrough.gd` aliases this current-level test. The controls and gait suites remain separate.
 
 ## Edition 14 — reactive guards and demolition effects
 
@@ -33,3 +33,13 @@ Explosions adapt Raptor's blended 16-frame atlas and procedural flame texture. G
 Walk-jump near each lip (around x385 and x2895), or use Shift for a longer running jump. Falling into a shaft is fatal; Enter restores the checkpoint.
 
 `tests/effects_ai.gd` checks rear-hit reaction, return fire, pursuit, edge braking, falling, anchored residue, pause and cleanup. `tests/cinderworks.gd` completes both jumps and the entire combat/bomb route using gameplay inputs.
+
+Gun drawn + Up takes cover even beside a ladder; sheathed + Up climbs. Destroyed blast doors spawn burning metal wreckage at the door base independently of the grenade impact location.
+
+## Enemy cover and impact feedback
+
+A visible shot toward a guard within 620 units triggers a cover decision: 65% success, 35% missed reaction. Successful decisions have a 0.12–0.24-second reaction delay, then 0.45–0.85 seconds in cover. Guards cannot move or fire in cover, emerge to return fire and remain exposed for at least 1.2 seconds before another decision. Shots from behind and blocked lines of sight do not trigger anticipatory cover. Close-range rounds can arrive before the guard reacts. Grenade damage still bypasses cover.
+
+Bullet impacts are placed at the contact surface, with a brief white flash, colored glow, directional sparks and glowing metal fragments. Armor favors warm sparks; scenery retains the projectile energy color. Effects pause with gameplay, expire after 0.42 seconds and are capped at 24 active bursts.
+
+`tests/enemy_cover.gd` exercises delayed reactions, successful and missed cover, vulnerability windows, return fire, shots from behind, bullet passage, impact pause/expiry and bullet-resistant doors. Add `-- --visual` to capture cover and impact screenshots.

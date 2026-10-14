@@ -30,7 +30,7 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 		add_child(node)
 		parts.append(node)
 	var node := parts[part_cursor]
-	node.configure(index)
+	node.configure(index,fighter.drake)
 	node.position = at
 	node.rotation = angle
 	# Keep limb lengths and joint positions stable while balancing the silhouette.
@@ -42,6 +42,15 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 		4: breadth = 1.18
 		6: breadth = 0.87
 		7: breadth = 0.90
+	if fighter.drake:
+		match index:
+			0: breadth = 1.0
+			1: breadth = 1.30
+			3: breadth = 1.48
+			4: breadth = 1.32
+			6: breadth = 1.18
+			7: breadth = 1.18
+			8: breadth = 1.15
 	node.scale = size*Vector2(breadth,1.0)/100.0
 	node.modulate = tint
 	node.z_index = part_cursor
@@ -243,6 +252,8 @@ func _draw() -> void:
 		equipped = 0
 	if fighter.health <= 0:
 		equipped = 0
+	if fighter.drake:
+		part(12,hip+Vector2(-8,3),Vector2(65,65),sin(clock*2.8)*0.07+run_weight*0.15,Color(0.85,0.82,0.91))
 	# The coat is intentionally removed. The slung shotgun sits close to the back.
 	if holstered > 0 and fighter.health > 0:
 		part(2,torso+Vector2(-22,4),Vector2(89,26),-1.18,Color(0.8,0.85,0.95,holstered))
@@ -263,7 +274,10 @@ func _draw() -> void:
 	# Flexible abdomen follows both chest lean and hip motion as one silhouette.
 	segment(5,torso+Vector2(0,37).rotated(lean),hip+Vector2(0,9),25)
 	part(1,torso,Vector2(56,58),lean)
-	part(0,torso+Vector2(4+run_weight*6,-34),Vector2(40,43),lean-0.04)
+	if fighter.drake:
+		part(0,torso+Vector2(-5+run_weight*6,-47),Vector2(52,54),lean-0.04)
+	else:
+		part(0,torso+Vector2(4+run_weight*6,-34),Vector2(40,43),lean-0.04)
 	var shoulder := torso+Vector2(-9,9)
 	var elbow := torso+Vector2(12,33)
 	var hand := torso+Vector2(36,24)
@@ -298,11 +312,9 @@ func _draw() -> void:
 		if fighter.recoil > 0.65:
 			var flash := torso+Vector2(85,24)
 			draw_colored_polygon(PackedVector2Array([flash+Vector2(0,-9),flash+Vector2(33,-3),flash+Vector2(16,0),flash+Vector2(39,8),flash+Vector2(0,7)]),Color(1,0.78,0.34,fighter.recoil))
-	if fighter.hurt_flash > 0:
-		draw_circle(torso+Vector2(0,30),42,Color(1,0.5,0.2,0.2))
 	if fighter.enemy and fighter.health > 0:
-		draw_rect(Rect2(torso.x-24,torso.y-54,48,4),Color("243243"))
-		draw_rect(Rect2(torso.x-24,torso.y-54,48*fighter.health/75,4),Color("f07855"))
+		draw_rect(Rect2(torso.x-24,torso.y-(67 if fighter.drake else 54),48,4),Color("243243"))
+		draw_rect(Rect2(torso.x-24,torso.y-(67 if fighter.drake else 54),48*fighter.health/75,4),Color("f07855"))
 
 
 

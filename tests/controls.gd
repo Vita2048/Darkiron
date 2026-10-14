@@ -114,7 +114,7 @@ func run() -> void:
 	key(KEY_S,false)
 	key(KEY_UP,true)
 	await frames(15)
-	check(not p.climbing and p.position.y>710,"drawn weapon blocks ladder entry")
+	check(not p.climbing and p.in_cover and p.position.y>710,"drawn weapon takes cover at ladder instead of climbing")
 	key(KEY_S,true)
 	await frames(20)
 	key(KEY_S,false)

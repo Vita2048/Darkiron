@@ -2,6 +2,7 @@ extends CharacterBody2D
 
 const Rig = preload("res://scripts/rig.gd")
 var enemy := false
+var drake := false
 var health := 100.0
 var facing := 1.0
 var climbing := false
@@ -25,6 +26,20 @@ var rig: Node2D
 var patrol_origin := 0.0
 var ai_clock := 0.0
 var alert_time := 0.0
+var cover_reaction := 0.0
+var cover_remaining := 0.0
+var cover_recovery := 0.0
+var cover_chance := 0.65
+
+func notice_shot(origin: Vector2) -> void:
+	if not enemy or health<=0 or not is_on_floor() or in_cover or cover_reaction>0 or cover_recovery>0:
+		return
+	# A guard must see the attacker; shots from behind still catch him exposed.
+	if (origin.x-position.x)*facing<=0: return
+	cover_recovery = 1.2
+	if world.rng.randf()<cover_chance:
+		cover_reaction = world.rng.randf_range(0.12,0.24)
+
 
 func _ready() -> void:
 	var shape := CollisionShape2D.new()
@@ -44,7 +59,7 @@ func _ready() -> void:
 		health = 75
 		facing = -1
 		cooldown = 1.4
-		modulate = Color(0.77, 0.95, 1.0)
+		modulate = Color.WHITE if drake else Color(0.77, 0.95, 1.0)
 
 func _physics_process(dt: float) -> void:
 	cooldown = maxf(0, cooldown - dt)
@@ -89,7 +104,7 @@ func _update_player(dt: float) -> void:
 		weapon_transition = 0.28
 	var candidate: Vector3 = world.ladder_at(position)
 	var near_ladder := candidate != Vector3.ZERO
-	in_cover = Input.is_action_pressed("up") and is_on_floor() and not climbing and not near_ladder
+	in_cover = Input.is_action_pressed("up") and is_on_floor() and not climbing and (weapon_drawn or not near_ladder)
 	crouching = Input.is_action_pressed("down") and is_on_floor() and not climbing
 	running = Input.is_action_pressed("run") and direction != 0 and not crouching and not in_cover and not climbing
 	var speed := 330.0 if running else 210.0
@@ -140,6 +155,24 @@ func _end_climb() -> void:
 
 func _update_enemy(dt: float) -> void:
 	ai_clock += dt
+	cover_recovery = maxf(0,cover_recovery-dt)
+	if world.player.health<=0:
+		cover_reaction = 0
+		cover_remaining = 0
+		in_cover = false
+	if cover_reaction>0:
+		cover_reaction = maxf(0,cover_reaction-dt)
+		if cover_reaction<=0 and is_on_floor():
+			cover_remaining = world.rng.randf_range(0.45,0.85)
+			in_cover = true
+	if in_cover:
+		cover_remaining = maxf(0,cover_remaining-dt)
+		velocity.x = 0
+		if cover_remaining>0: return
+		in_cover = false
+		cover_recovery = 1.2
+		cooldown = minf(cooldown,0.12)
+
 	var delta: Vector2 = world.player.position-position
 	var sight: bool = absf(delta.y)<85 and absf(delta.x)<650 and world.player.health>0
 	for barrier in world.barriers:
@@ -177,7 +210,7 @@ func fire() -> void:
 	recoil = 1
 	world.fire_bullet(self)
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float,hit_color := Color("ff9b56")) -> void:
 	if health <= 0:
 		return
 	health = maxf(0, health - amount)
@@ -187,13 +220,14 @@ func take_damage(amount: float) -> void:
 		if alert_time<=0 or toward*facing<0: cooldown = minf(cooldown,0.08)
 		if absf(toward)>1: facing = signf(toward)
 		alert_time = 8.0
-	world.burst(position + Vector2(0, -80), Color("ff9b56"), 12)
+	world.burst(position + Vector2(0, -80), hit_color, 12)
 	if not enemy:
 		world.shake = 5
 		world.sound("hurt")
 	if health <= 0:
 		dropped_weapon = preload("res://scripts/dropped_weapon.gd").new()
 		dropped_weapon.world = world
+		dropped_weapon.drake = drake
 		dropped_weapon.position = position + Vector2(facing*35,-115)
 		dropped_weapon.velocity = Vector2(facing*110,-150)
 		dropped_weapon.scale.x = facing
@@ -207,6 +241,7 @@ func take_damage(amount: float) -> void:
 		world.sound("fall")
 		if enemy:
 			world.kills += 1
+
 
 
 

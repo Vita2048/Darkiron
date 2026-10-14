@@ -14,7 +14,7 @@ var equipment = preload("res://assets/cinderworks-equipment.png")
 var platforms: Array[Rect2] = [Rect2(-200,720,610,220),Rect2(525,720,2395,220),Rect2(3030,720,3570,220),Rect2(1150,480,1600,44),Rect2(3300,480,600,44),Rect2(5000,480,1200,44)]
 var ladders := [Vector3(1250,480,720),Vector3(3400,480,720),Vector3(5100,480,720)]
 var barriers: Array = []
-var caches := [{"p":Vector2(1550,480),"cooldown":0.0},{"p":Vector2(3780,720),"cooldown":0.0},{"p":Vector2(3700,480),"cooldown":0.0}]
+var caches := [{"p":Vector2(1550,480),"taken":false},{"p":Vector2(3780,720),"taken":false},{"p":Vector2(3700,480),"taken":false}]
 var meds := [{"p":Vector2(2650,720),"taken":false},{"p":Vector2(3750,480),"taken":false},{"p":Vector2(4950,720),"taken":false}]
 var checkpoint := Vector2(260,720)
 var checkpoint_active := false
@@ -80,6 +80,7 @@ func _ready() -> void:
 	for spawn in [Vector2(825,720),Vector2(1900,480),Vector2(2520,480),Vector2(3240,720),Vector2(4690,720),Vector2(5580,480)]:
 		var enemy := Fighter.new()
 		enemy.enemy = true
+		enemy.drake = enemies.is_empty()
 		enemy.world = self
 		enemy.position = spawn
 		add_child(enemy)
@@ -185,9 +186,11 @@ func _physics_process(dt: float) -> void:
 		b.p += b.v * dt
 		b.life -= dt
 		var hit := false
+		var armor_hit := false
 		# Solid blast seals stop both sides' fire and cannot be shot open.
 		for barrier in barriers:
 			if not barrier.destroyed and _segment_hits(previous,b.p,barrier.rect):
+				b.p = _hit_position(previous,b.p,barrier.rect)
 				hit = true
 				break
 		var targets: Array = [player] if b.enemy else enemies
@@ -201,16 +204,25 @@ func _physics_process(dt: float) -> void:
 			var height := 103.0 if target.crouching else 140.0
 			var box := Rect2(target.position-Vector2(23,height),Vector2(46,height))
 			if target.health > 0 and _segment_hits(previous,b.p,box):
-				target.take_damage(13 if b.enemy else 27)
+				b.p = _hit_position(previous,b.p,box)
+				armor_hit = true
+				target.take_damage(13 if b.enemy else 27,Color("ff534b") if b.enemy else Color("35bfff"))
 				hit = true
 				break
 		if not hit:
 			for rect in platforms:
 				if _segment_hits(previous,b.p,rect):
+					b.p = _hit_position(previous,b.p,rect)
 					hit = true
 					break
 		if hit:
-			burst(b.p,Color("ffba70"),5)
+			var impact := preload("res://scripts/bullet_impact.gd").new()
+			impact.world = self
+			impact.position = b.p
+			impact.incoming = b.v.normalized()
+			impact.energy = Color("ff534b") if b.enemy else Color("35bfff")
+			impact.armor = armor_hit
+			add_child(impact)
 		if hit or b.life <= 0:
 			bullets.remove_at(i)
 	for i in range(grenades.size()-1,-1,-1):
@@ -253,14 +265,13 @@ func say(message: String) -> void:
 	notice = message
 	notice_time = 4.0
 
-func _update_pickups(dt: float) -> void:
+func _update_pickups(_dt: float) -> void:
 	if player.health<=0:
 		return
 	for cache in caches:
-		cache.cooldown = maxf(0,cache.cooldown-dt)
-		if player.position.distance_to(cache.p)<65 and cache.cooldown<=0 and grenades_left<3:
+		if player.position.distance_to(cache.p)<65 and not cache.taken and grenades_left<=3:
 			grenades_left = mini(6,grenades_left+3)
-			cache.cooldown = 12.0
+			cache.taken = true
 			burst(cache.p+Vector2(0,-25),Color("ffd185"),14)
 			sound("jump")
 			say("DEMOLITION CACHE / +3 bombs. G to throw. Blast seals resist gunfire.")
@@ -305,12 +316,32 @@ func _segment_hits(a: Vector2,b: Vector2,rect: Rect2) -> bool:
 			return true
 	return false
 
+func _hit_position(a: Vector2,b: Vector2,rect: Rect2) -> Vector2:
+	if rect.has_point(a): return a
+	var point := b
+	var corners := [rect.position,Vector2(rect.end.x,rect.position.y),rect.end,Vector2(rect.position.x,rect.end.y)]
+	for i in 4:
+		var contact = Geometry2D.segment_intersects_segment(a,b,corners[i],corners[(i+1)%4])
+		if contact != null and a.distance_squared_to(contact)<a.distance_squared_to(point): point = contact
+	return point
+
 func fire_bullet(actor: CharacterBody2D) -> void:
 	bullets.append({"p":actor.muzzle(),"v":Vector2(actor.facing*1100,0),"life":1.35,"enemy":actor.enemy})
 	burst(actor.muzzle(),Color("ffb24b"),4)
 	sound("enemy" if actor.enemy else "shot")
 	if not actor.enemy:
 		shake = 2
+		var origin: Vector2 = actor.muzzle()
+		for guard in enemies:
+			var delta: Vector2 = guard.position+Vector2(0,-100)-origin
+			if delta.x*actor.facing<=0 or absf(delta.x)>620 or absf(delta.y)>65: continue
+			var blocked := false
+			var target: Vector2 = guard.position+Vector2(0,-100)
+			for barrier in barriers:
+				if not barrier.destroyed and _segment_hits(origin,target,barrier.rect): blocked = true
+			for platform in platforms:
+				if _segment_hits(origin,target,platform): blocked = true
+			if not blocked: guard.notice_shot(origin)
 
 func throw_grenade(actor: CharacterBody2D) -> void:
 	if grenades_left <= 0 or actor.health <= 0:
@@ -341,6 +372,12 @@ func explode(at: Vector2) -> void:
 		if not barrier.destroyed and closest.distance_to(at)<155:
 			barrier.destroyed = true
 			barrier.body.queue_free()
+			var wreckage := preload("res://scripts/blast_effect.gd").new()
+			wreckage.world = self
+			wreckage.position = Vector2(rect.get_center().x,rect.end.y)
+			wreckage.floor_offset = 0
+			wreckage.door_debris = true
+			add_child(wreckage)
 			seals_broken += 1
 			burst(rect.get_center(),Color("e8ad74"),45)
 			if barrier==barriers[0]: crate_health = 0

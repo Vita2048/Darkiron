@@ -59,6 +59,18 @@ func run() -> void:
 	check(effect.smoke.emitting,"smoke and embers linger after blast")
 	await frames(650)
 	check(get_nodes_in_group("blast_effects").is_empty(),"effects expire and release emitters")
+	game.player.position = Vector2(2000,480)
+	game.camera_x = 1500
+	game.explode(Vector2(2110,430))
+	var wreckage: Node2D
+	for node in get_nodes_in_group("blast_effects"):
+		if node.door_debris: wreckage = node
+	check(game.barriers[0].destroyed and is_instance_valid(wreckage),"destroyed door creates its own burning wreckage")
+	if is_instance_valid(wreckage):
+		check(wreckage.position==Vector2(2242.5,480) and wreckage.floor_offset==0,"door fire anchors to door base rather than grenade location")
+		await frames(100)
+		await capture("door-wreckage")
+		check(wreckage.smoke.emitting,"destroyed door debris keeps burning after blast")
 	print("UPGRADE FAILURES: ",failures)
 	game.queue_free()
 	await frames(3)

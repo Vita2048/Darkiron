@@ -60,9 +60,9 @@ func _draw() -> void:
 				var at := Vector2(rect.position.x-15+i*17,rect.end.y)
 				draw_colored_polygon(PackedVector2Array([at,at+Vector2(8,-9-i%3*5),at+Vector2(21,0)]),Color("58616a"))
 	for cache in world.caches:
-		if not visible_x(cache.p.x,100): continue
-		prop(1,Rect2(cache.p-Vector2(48,72),Vector2(96,72)),Color.WHITE if cache.cooldown<=0 else Color("68727d"))
-		label(cache.p+Vector2(-55,-86),"BOMBS +3" if cache.cooldown<=0 else "REFILL %ds" % ceili(cache.cooldown),13,Color("ffd295"))
+		if cache.taken or not visible_x(cache.p.x,100): continue
+		prop(1,Rect2(cache.p-Vector2(48,72),Vector2(96,72)))
+		label(cache.p+Vector2(-55,-86),"BOMBS +3",13,Color("ffd295"))
 	for med in world.meds:
 		if med.taken or not visible_x(med.p.x): continue
 		var at: Vector2 = med.p+Vector2(0,-26-sin(world.clock*2)*3)

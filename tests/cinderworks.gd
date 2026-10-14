@@ -97,12 +97,11 @@ func run() -> void:
 	await press("continue_game",2)
 	check(game.player.health==100 and game.player.position.distance_to(game.checkpoint)<5,"ENTER respawns at checkpoint")
 	check(game.seals_broken==2 and game.kills==6,"checkpoint retains earned progress")
-	# Empty cache replenishes rather than permanently stranding the player.
-	game.player.position = game.caches[1].p
+	# Pickups remain consumed after death, waiting and returning to the same location.
+	game.player.position = game.caches[0].p
 	game.grenades_left = 0
-	game.caches[1].cooldown = 0.1
-	await frames(15)
-	check(game.grenades_left==3,"depleted bomb supply can be replenished")
+	await frames(750)
+	check(game.caches[0].taken and game.grenades_left==0,"collected bombs disappear permanently and cannot be collected twice")
 	print("CINDERWORKS RESULT: ",failures," failure(s)")
 	game.queue_free()
 	await frames(3)

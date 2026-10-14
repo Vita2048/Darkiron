@@ -6,13 +6,14 @@ const Flame = preload("res://scripts/raptor_flame_texture.gd")
 var world: Node2D
 var floor_offset := INF
 var age := 0.0
+var door_debris := false
 var flame: Texture2D
 var smoke: CPUParticles2D
 var embers: CPUParticles2D
 func _ready() -> void:
 	z_index = 4
 	add_to_group("blast_effects")
-	# Bound overlapping emitters when repeatedly refilling a cache.
+	# Bound overlapping emitters during successive detonations.
 	var active := get_tree().get_nodes_in_group("blast_effects")
 	if active.size()>10: active[0].queue_free()
 	flame = Flame.flame_texture()
@@ -69,6 +70,14 @@ func _draw() -> void:
 		draw_set_transform(Vector2(0,floor_offset-2),0,Vector2(1,0.18))
 		draw_circle(Vector2.ZERO,65,Color(0.025,0.018,0.015,0.8*fade))
 		draw_set_transform(Vector2.ZERO)
+		if door_debris:
+			for i in 7:
+				var at := Vector2(-57+i*18,floor_offset)
+				var height := 10.0+(i*7)%15
+				var shard := PackedVector2Array([at,at+Vector2(-5,-height*0.6),at+Vector2(8,-height),at+Vector2(22,-4),at+Vector2(18,1)])
+				draw_colored_polygon(shard,Color(0.19,0.22,0.25,fade))
+				draw_polyline(shard,Color(0.43,0.37,0.28,fade),1.5,true)
+				draw_line(at+Vector2(2,-4),at+Vector2(9,-height+3),Color(1,0.35,0.06,fade*(1-smoothstep(5,10,age))),2,true)
 		var heat := smoothstep(0.1,0.45,age)*(1-smoothstep(4,8,age))
 		for i in 9:
 			var x := -48.0+i*12
@@ -78,7 +87,7 @@ func _draw() -> void:
 			if h>0.1:
 				draw_texture_rect(flame,Rect2(at-Vector2(18,h),Vector2(36,h+8)),false,Color(1,1,1,heat))
 		draw_texture_rect(world.bullet_glow,Rect2(-85,floor_offset-60,170,85),false,Color(1,0.26,0.035,heat*0.45))
-	if age<1.05:
+	if age<1.05 and not door_debris:
 		var t := age/1.05
 		var phase := pow(t,0.72)*15
 		var frame := mini(int(phase),14)
