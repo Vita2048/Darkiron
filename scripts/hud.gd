@@ -23,7 +23,7 @@ func _draw() -> void:
 	draw_rect(Rect2(0,0,1440,104),Color(0.025,0.044,0.072,0.9))
 	draw_line(Vector2(40,103),Vector2(1400,103),Color("354051"),1)
 	text(Vector2(40,38),"D A R K I R O N",25,Color("f3dec1"))
-	text(Vector2(42,66),"ASHEN GATE  /  VECTOR EDITION 06",12,Color("8b9bad"))
+	text(Vector2(42,66),"ASHEN GATE  /  VECTOR EDITION 12",12,Color("8b9bad"))
 	text(Vector2(458,37),"VITALS",12,Color("8b9bad"))
 	for i in range(10):
 		draw_rect(Rect2(459+i*17,51,12,17),Color("e2ad78") if world.player.health>i*10 else Color("293744"))

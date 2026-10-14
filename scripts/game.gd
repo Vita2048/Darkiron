@@ -29,6 +29,7 @@ var audio: Dictionary = {}
 var capture_mode := false
 var captured := false
 var ui: Node2D
+var bullet_glow: GradientTexture2D
 
 func _ready() -> void:
 	var window := get_window()
@@ -37,7 +38,18 @@ func _ready() -> void:
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	window.content_scale_factor = 1.0
-	window.title = "DARKIRON — Vector Edition 06"
+	window.title = "DARKIRON — Vector Edition 12"
+	# Shared smooth falloff: two textured glow draws per projectile, no lights.
+	bullet_glow = GradientTexture2D.new()
+	bullet_glow.width = 128
+	bullet_glow.height = 128
+	bullet_glow.fill = GradientTexture2D.FILL_RADIAL
+	bullet_glow.fill_from = Vector2(0.5,0.5)
+	bullet_glow.fill_to = Vector2(1,0.5)
+	var falloff := Gradient.new()
+	falloff.offsets = PackedFloat32Array([0,0.16,0.45,1])
+	falloff.colors = PackedColorArray([Color(1,1,1,0.8),Color(1,1,1,0.5),Color(1,1,1,0.14),Color(1,1,1,0)])
+	bullet_glow.gradient = falloff
 	rng.seed = 82491
 	_setup_input()
 	for rect in platforms:
@@ -308,7 +320,15 @@ func _draw() -> void:
 	_world_text(Vector2(2350,365),"02 / ASHEN GATE",19,Color("d1b99b"))
 	_world_text(Vector2(435,620),"JUMP",14,Color("b5c2ce"))
 	for b in bullets:
-		draw_line(b.p-Vector2(signf(b.v.x)*25,0),b.p,Color("ffe0a2") if not b.enemy else Color("f28865"),3,true)
+		var energy := Color("ff534b") if b.enemy else Color("35bfff")
+		draw_set_transform(b.p,b.v.angle())
+		draw_texture_rect(bullet_glow,Rect2(-58,-17,72,34),false,Color(energy,0.72))
+		draw_texture_rect(bullet_glow,Rect2(-19,-19,38,38),false,energy)
+		draw_line(Vector2(-42,0),Vector2(-5,0),Color(energy,0.22),7,true)
+		draw_line(Vector2(-28,0),Vector2(1,0),energy,3.5,true)
+		draw_line(Vector2(-16,0),Vector2(2,0),Color("fff0e9") if b.enemy else Color("dcfaff"),1.5,true)
+		draw_circle(Vector2.ZERO,2.4,Color.WHITE)
+		draw_set_transform(Vector2.ZERO)
 	for g in grenades:
 		draw_circle(g.p,7,Color("1b2633"))
 		draw_arc(g.p,7,0,TAU,12,Color("a8afb1"),2,true)

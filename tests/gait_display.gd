@@ -45,6 +45,25 @@ func run() -> void:
 	check(run_extended,"running extends the weight-bearing leg during contact")
 	var recovery: Vector2 = rig.run_angles(TAU*0.625)
 	check(absf(recovery.x-recovery.y)>deg_to_rad(90),"running retains folded heel recovery")
+	rig.move_weight = 1
+	rig.run_weight = 1
+	var air_frames := 0
+	var grounded_frames := 0
+	var no_penetration := true
+	for i in 100:
+		var phase := TAU*i/100.0
+		var hip_y: float = -rig.gait_height(phase)
+		var soles: Array[float] = []
+		for offset in [0.0,PI]:
+			var pose: Array[Vector2] = rig.gait_leg_points(Vector2(0,hip_y),phase+offset,offset==0)
+			soles.append(pose[2].y+rig.sole_depth(rig.run_foot_angle(phase+offset)))
+		no_penetration = no_penetration and maxf(soles[0],soles[1])<0.01
+		if maxf(soles[0],soles[1]) < -5: air_frames += 1
+		if absf(maxf(soles[0],soles[1]))<0.01: grounded_frames += 1
+	check(air_frames>=20,"run includes a visible flight phase with both soles clear of the ground")
+	check(grounded_frames>=40 and no_penetration,"run retains ground contact and boots never penetrate the floor")
+	rig.run_weight = 0
+	check(absf(rig.foot_angle(TAU*0.125))<0.01 and rig.foot_angle(TAU*0.5)>0,"walk has flat support and toe-down recovery")
 	check(root.content_scale_size==Vector2i(1920,1080),"base canvas is 1920 by 1080")
 	check(root.content_scale_aspect==Window.CONTENT_SCALE_ASPECT_IGNORE,"window stretch fills the available area")
 	check(root.content_scale_mode==Window.CONTENT_SCALE_MODE_CANVAS_ITEMS and root.content_scale_factor==1.0,"runtime restores scaling even after small-canvas overrides")

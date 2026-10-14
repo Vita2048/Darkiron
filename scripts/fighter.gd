@@ -66,9 +66,10 @@ func _physics_process(dt: float) -> void:
 		_update_player(dt)
 	if not climbing:
 		velocity.y = minf(velocity.y + 1450 * dt, 900)
+	var before_move := position
 	move_and_slide()
 	if is_on_floor() and absf(velocity.x) > 10:
-		gait += absf(velocity.x) * dt / (29.0 if running else 35.0)
+		gait += absf(position.x-before_move.x) / (Rig.RUN_DISTANCE_PER_RADIAN if running else 35.0)
 	elif climbing:
 		gait += velocity.y * dt / 25
 	else:
@@ -86,7 +87,7 @@ func _update_player(dt: float) -> void:
 	in_cover = Input.is_action_pressed("up") and is_on_floor() and not climbing and not near_ladder
 	crouching = Input.is_action_pressed("down") and is_on_floor() and not climbing
 	running = Input.is_action_pressed("run") and direction != 0 and not crouching and not in_cover and not climbing
-	var speed := 300.0 if running else 210.0
+	var speed := 330.0 if running else 210.0
 	if crouching:
 		speed = 70
 	velocity.x = move_toward(velocity.x, direction * speed, dt * 1600)

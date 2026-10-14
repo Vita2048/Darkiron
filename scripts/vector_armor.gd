@@ -56,6 +56,9 @@ func paint(target,index: int,color: Color) -> void:
 		6: thigh()
 		7: shin()
 		8: boot()
+		9: trigger_hand(false)
+		10: trigger_hand(true)
+		11: shotgun(true)
 
 func helmet() -> void:
 	# Crown and backward swept horns, a broad visor and segmented jaw.
@@ -119,23 +122,25 @@ func upper_arm() -> void:
 	bolt(24,40)
 
 func forearm() -> void:
-	circle(Vector2(0,8),20,INK)
+	circle(Vector2(0,8),24,INK)
 	circle(Vector2(0,8),13,STEEL)
 	plate([-30,20,-23,11,20,12,32,24,24,65,14,77,-16,77,-27,58],DARK)
 	plate([-23,23,-12,17,20,22,22,49,13,65,-13,62,-25,48],STEEL)
 	line([-23,25,-18,46,-10,58],EDGE,2)
 	plate([-9,28,17,28,18,43,-8,43],INK,1.5)
 	energy([-3,35,12,35],4)
-	plate([-18,70,17,70,19,80,11,96,-14,99,-22,86],Color("25313b"),2)
+	plate([-20,70,20,70,25,81,17,96,-17,99,-26,86],Color("25313b"),2)
 	for x in [-12,-3,6]:
 		line([x,81,x+2,95],Color("869097"),1.3)
 	line([-16,73,13,74],EDGE,2)
 	bolt(-15,23,1.7)
 
 func thigh() -> void:
-	plate([-34,0,30,0,29,24,20,62,12,91,-14,96,-27,64,-36,24],DARK)
-	plate([-27,5,17,6,24,22,14,62,-2,74,-22,56,-30,25],STEEL)
-	plate([-21,8,-5,7,2,34,-10,59,-23,48],Color("536c7c"),1.5)
+	# Rounded proximal joint nests beneath the pelvis instead of projecting a
+	# rectangular thigh corner above the belt during an extended stride.
+	plate([0,-2,18,3,26,14,29,24,20,62,12,91,-14,96,-27,64,-30,24,-23,9,-12,1],DARK)
+	plate([-19,10,13,8,23,22,14,62,-2,74,-22,56,-26,25],STEEL)
+	plate([-16,12,-5,10,2,34,-10,59,-23,48],Color("536c7c"),1.5)
 	line([-24,9,-26,28,-18,47],EDGE,2)
 	plate([-16,66,1,74,17,65,17,87,3,100,-17,89],Color("2c3e4e"))
 	line([-13,70,0,79,14,70],EDGE,1.5)
@@ -145,8 +150,8 @@ func thigh() -> void:
 	bolt(17,10,1.8)
 
 func shin() -> void:
-	circle(Vector2(0,8),20,INK)
-	circle(Vector2(0,8),14,Color("3c5161"))
+	circle(Vector2(0,8),24,INK)
+	circle(Vector2(0,8),18,Color("3c5161"))
 	plate([-31,19,-15,6,5,11,28,6,37,17,25,39,17,87,-17,91,-25,53],DARK)
 	plate([-24,24,-9,14,17,20,19,44,8,78,-13,74,-21,51],STEEL)
 	plate([-17,30,-5,23,4,39,-7,68,-14,58],Color("597282"),1.5)
@@ -170,7 +175,7 @@ func boot() -> void:
 		line([x,90,x,98],Color("3c4750"),2)
 	bolt(-17,44,3)
 
-func shotgun() -> void:
+func shotgun(pulled := false) -> void:
 	# Long two-barrel firearm; width is normalized to 100 and height to 100.
 	plate([-49,43,-28,36,-23,16,29,18,32,29,49,29,49,54,29,55,21,67,-10,65,-15,92,-27,88,-24,63,-46,65],DARK,2)
 	plate([-22,23,27,24,27,58,-18,60],Color("36464f"),1.4)
@@ -187,13 +192,42 @@ func shotgun() -> void:
 	line([28,56,44,56],EDGE,1.4)
 	plate([-42,46,-26,41,-27,58,-44,59],Color("3b2827"),1)
 	bolt(-20,29,1.4)
+	# Receiver, ejector, fasteners, serrated rail and twin muzzle channels.
+	plate([-16,30,-1,30,-1,41,-16,41],Color("111c25"),0.8)
+	line([-14,32,-4,32,-4,38],EDGE,1)
+	line([-7,47,-2,47],Color("ffe2a1"),1)
+	for x in range(-20,26,5):
+		plate([x,16,x+3,16,x+3,20,x,20],Color("76838a"),0.6)
+	line([-24,24,-24,53,-18,58],EDGE,1)
+	for x in [-19,0,25]:
+		bolt(x,54,1.4)
+	plate([27,44,47,44,47,50,27,50],Color("18242d"),0.7)
+	line([29,45,45,45],EDGE,0.8)
+	line([47,30,47,52],INK,2)
+	line([-43,49,-30,45],EDGE,0.7)
+	for x in range(5,23,3):
+		line([x,53,x-1,61],Color("17232c"),1.4)
+	# Exposed trigger guard and curved trigger below the receiver.
+	line([-15,61,0,62,3,72,-1,83,-15,83],INK,4)
+	line([-14,62,-1,63,1,72,-2,81,-14,81],EDGE,1.5)
+	line([-6,63,-9 if pulled else -5,71,-12 if pulled else -9,75],Color("bbc7cc"),1.6)
 
 func waist() -> void:
-	# Close-fitting armor replaces the generated pointed, skirt-like hip plates.
-	var outline := PackedVector2Array([Vector2(-20,-9),Vector2(20,-9),Vector2(17,9),Vector2(8,16),Vector2(-8,16),Vector2(-17,9)])
-	canvas.draw_colored_polygon(outline,Color("172331"))
-	canvas.draw_polyline(PackedVector2Array([outline[0],outline[1],outline[2],outline[3],outline[4],outline[5],outline[0]]),Color("617181"),1,true)
-	canvas.draw_rect(Rect2(Vector2(-21,-7),Vector2(42,9)),Color("354352"))
-	canvas.draw_line(Vector2(-20,-7),Vector2(20,-7),Color("8996a1"),1,true)
-	canvas.draw_rect(Rect2(Vector2(-5,-6),Vector2(10,7)),Color("a76536"))
-	canvas.draw_rect(Rect2(Vector2(-3,-4),Vector2(6,3)),Color("ffb967"))
+	# Soft-sided continuation of the torso: no belt rim or floating pelvic plate.
+	plate([-46,0,46,0,43,35,38,73,21,96,0,100,-23,94,-39,70,-44,32],DARK,1.8)
+	plate([-35,0,5,0,7,67,-10,83,-29,66],Color("293b49"),0.8)
+	plate([9,0,34,0,31,65,16,82,7,64],Color("344957"),0.8)
+	line([-32,12,-30,47,-23,67],Color("526776"),1.2)
+
+func trigger_hand(pulled: bool) -> void:
+	# Authored in weapon coordinates, so the grip never separates under recoil.
+	plate([-29,67,-23,62,-16,66,-13,77,-16,94,-26,94,-31,85],Color("344957"),1.1)
+	plate([-28,69,-23,65,-18,69,-18,80,-28,82],STEEL,0.9)
+	line([-27,83,-17,84],EDGE,1.2)
+	line([-26,88,-18,89],EDGE,1.2)
+	line([-24,93,-18,93],EDGE,1.0)
+	# Curled index finger goes inside the guard and pulls toward the palm.
+	var tip := -10.0 if pulled else -6.0
+	line([-20,70,-14,66,tip,68,tip-1,76,-13,77],INK,5.5)
+	line([-20,70,-14,66,tip,68,tip-1,76,-13,77],Color("8a9da5"),3.2)
+	line([-25,68,-20,73],LIGHT,1.2)

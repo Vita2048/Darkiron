@@ -79,3 +79,29 @@ The top-right HUD displays sampled FPS and frame time. Armor primitives are bake
 On this machine's AMD Radeon integrated GPU, the same 180-frame, VSync-disabled benchmark at 3840×2054 measured 26.1 FPS / 38.3 ms before and 66.7 FPS / 15.0 ms after. Draw calls fell from 1,954 to 342. These are local scene measurements, not a guaranteed minimum FPS. Raw results are in `tests/performance-before.json` and `tests/performance-after.json`; run `--script res://tests/performance.gd` to repeat the current benchmark.
 
 Regression scripts: `tests/controls.gd` (weapon, cover, ladder restrictions, dropped gun), `tests/playthrough.gd` (complete encounter), and `tests/gait_display.gd` (pose and display scaling).
+
+## Animation refinement (Vector Edition 07)
+
+Replaced the hanging waist frame with a compact belt; thigh and shin armor is about 30% wider. Boots pivot at the ankle and use authored heel-contact, flat-support, toe-off and recovery angles. Pelvis height accounts for the rotated sole to avoid ground penetration. Running cadence is 18% faster at the same travel speed, with two visible flight intervals per stride and up to 17 world units of sole clearance. The collision body remains grounded during this visual stride cycle so ladder and jump controls remain stable.
+
+`tests/pose_review.gd` renders eight-pose walk/run review strips. The gait regression checks sole clearance, grounded support, and flight intervals.
+
+## Proportion refinement (Vector Edition 08)
+
+Torso and helmet are 14% narrower, upper arms 17% narrower, thighs 13% narrower and shins 10% narrower than Edition 07. Forearms are 18% fuller with broader palms. Rounded thigh roots sit beneath continuous pelvis armor, with the hip sockets moved closer together. Bone lengths, stride timing and boot contact geometry are preserved. Standing and eight-pose walking/running renders were inspected.
+
+## Planted running stride (Vector Edition 09)
+
+Torso breadth is reduced another 7.5%. Running speed is 330 units/second (was 300). Run phase advances from actual horizontal displacement, including collision response. During stance, the ankle moves backward locally by exactly the distance the body advances; the boot stays flat until release. Two-bone posing connects the pelvis to this contact target, followed by lifted heel recovery and an airborne interval. The left/right movement regression measured less than 0.00001 units of planted-foot drift over 106 contact samples; gait clearance checks pass. This contact correction applies to the running cycle.
+
+## Torso continuity and weapon grip (Vector Edition 10)
+
+Removed the separate waist rim and belt. The lower abdomen now bridges the leaned chest and hips as a continuous tapered surface. Added shotgun rail teeth, receiver and ejection-port details, fasteners, barrel channels, trigger guard and trigger. The visible arm meets the pistol grip; a separate articulated glove overlays the weapon, and its index finger and the trigger move together during firing recoil. Both weapon and hand share the same transform. Armed and unarmed stride sheets and the controls regression were verified.
+
+## Side-view overlap (Vector Edition 11)
+
+Compared Prince's skeleton and drawDetailedPerson: both legs originate at one projected hip, with a narrower, darker rear leg painted first. Darkiron now follows that layout instead of using horizontally separated hip sockets. Resting leg angles nearly overlap, while the far leg becomes visible during a stride. The firing elbow is tucked forward to keep joint armor inside the torso silhouette. Left/right armed poses, gait clearance, and planted running contact were checked.
+
+## Proportions and energy rounds (Vector Edition 12)
+
+Upper chest narrows 10% toward the shoulders while retaining the abdomen width; helmet narrows about 7%. Thighs broaden progressively below the unchanged hip socket, reaching 16% at the lower thigh; knee armor is fuller. Enemy health bars track the torso at 54 units above its origin, clearing the helmet. Blue player rounds and red-orange enemy rounds use white-hot cores, trails and two shared radial-gradient glow sprites per shot. No dynamic lights or fullscreen postprocessing are required. Combat glow and pose renders were inspected; gait checks pass.

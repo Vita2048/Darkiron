@@ -33,7 +33,16 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 	node.configure(index)
 	node.position = at
 	node.rotation = angle
-	node.scale = size/100.0
+	# Keep limb lengths and joint positions stable while balancing the silhouette.
+	var breadth := 1.0
+	match index:
+		0: breadth = 0.80
+		1: breadth = 0.80
+		3: breadth = 0.83
+		4: breadth = 1.18
+		6: breadth = 0.87
+		7: breadth = 0.90
+	node.scale = size*Vector2(breadth,1.0)/100.0
 	node.modulate = tint
 	node.z_index = part_cursor
 	node.visible = true
@@ -57,9 +66,9 @@ func leg(hip: Vector2, foot: Vector2, tint: Color) -> void:
 # Adapted from Prince PS.stand / skeleton: explicit mild leg angles and hip
 # height derived from their vertical reach, not a lowered hip with bent IK knees.
 func standing_points(front_leg: bool) -> Array[Vector2]:
-	var a := deg_to_rad(4.0 if front_leg else -4.0)
-	var b := deg_to_rad(0.0 if front_leg else -3.0)
-	var root := Vector2(5 if front_leg else -6,0)
+	var a := deg_to_rad(3.0 if front_leg else 0.0)
+	var b := deg_to_rad(0.0 if front_leg else -1.0)
+	var root := Vector2.ZERO
 	var k := root + Vector2(sin(a),cos(a))*40
 	var ankle := k + Vector2(sin(b),cos(b))*40
 	return [root,k,ankle]
@@ -73,12 +82,9 @@ func grounded_leg(hip: Vector2,foot: Vector2,front_leg: bool,tint: Color) -> voi
 	var root := hip.lerp(base+standing[0],stand_weight)
 	var k := knee(hip,foot,1).lerp(base+standing[1],stand_weight)
 	var ankle := foot.lerp(base+standing[2],stand_weight)
-	segment(6,root,k,29,tint)
-	segment(7,k,ankle,24,tint)
+	segment(6,root,k,38 if front_leg else 33,tint)
+	segment(7,k,ankle,31 if front_leg else 27,tint)
 	part(8,ankle+Vector2(8,-9),Vector2(34,19),0,tint)
-
-func fitted_waist(at: Vector2) -> void:
-	part(5,at,Vector2(100,100))
 
 # Contact, weight-bearing, push-off, heel recovery, knee drive, extension.
 # Explicit joint poses keep the rear knee folded instead of bicycling both feet.
@@ -99,38 +105,85 @@ func sample_angles(keys: Array,phase: float) -> Vector2:
 	return pose * PI / 180.0
 
 func gait_angles(phase: float,front_leg: bool) -> Vector2:
-	var rest := Vector2(4,0) if front_leg else Vector2(-4,-3)
+	var rest := Vector2(3,0) if front_leg else Vector2(0,-1)
 	return (rest*PI/180.0).lerp(walk_angles(phase).lerp(run_angles(phase),run_weight),move_weight)
+
+# Foot pitch is authored separately from the shin: heel contact, flat support,
+# toe-off, then relaxed recovery. Rotate around the ankle, never the boot corner.
+func foot_angle(phase: float) -> float:
+	var walk := sample_angles([Vector2(-8,0),Vector2(0,0),Vector2(0,0),Vector2(12,0),Vector2(30,0),Vector2(18,0),Vector2(2,0),Vector2(-8,0)],phase).x
+	var run := sample_angles([Vector2(-10,0),Vector2(0,0),Vector2(10,0),Vector2(30,0),Vector2(65,0),Vector2(75,0),Vector2(20,0),Vector2(-10,0)],phase).x
+	return lerpf(walk,run,run_weight)*move_weight
+
+func sole_depth(angle: float) -> float:
+	var depth := -100.0
+	for point in [Vector2(-46,83),Vector2(44,83),Vector2(41,95),Vector2(-39,100),Vector2(-46,94)]:
+		var local: Vector2 = point*Vector2(0.34,0.19)-Vector2(-5,8)
+		depth = maxf(depth,local.rotated(angle).y)
+	return depth
+
+func flight_height(phase: float) -> float:
+	var half_phase := fposmod(phase/TAU,0.5)
+	var t := clampf((half_phase-0.31)/0.19,0,1)
+	return sin(t*PI)*sin(t*PI)*17*run_weight*move_weight
+
+const RUN_DISTANCE_PER_RADIAN := 24.5
+const RUN_CONTACT := 0.31
+
+func run_ankle(phase: float) -> Vector2:
+	var t := fposmod(phase/TAU,1.0)
+	var release_x := 30.0-RUN_CONTACT*TAU*RUN_DISTANCE_PER_RADIAN
+	if t <= RUN_CONTACT:
+		# Exactly cancel actual forward travel throughout the flat planted phase.
+		return Vector2(30.0-t*TAU*RUN_DISTANCE_PER_RADIAN,-11)
+	var times := [RUN_CONTACT,0.50,0.68,0.85,1.0]
+	var keys := [Vector2(release_x,-11),Vector2(-43,-50),Vector2(-2,-67),Vector2(42,-32),Vector2(30,-11)]
+	for i in 4:
+		if t <= times[i+1]:
+			var weight: float = (t-times[i])/(times[i+1]-times[i])
+			return keys[i].lerp(keys[i+1],smoothstep(0,1,weight))+Vector2(0,-sin((t-RUN_CONTACT)/(1.0-RUN_CONTACT)*PI)*12)
+	return keys[4]
+
+func run_foot_angle(phase: float) -> float:
+	var t := fposmod(phase/TAU,1.0)
+	if t <= RUN_CONTACT:
+		return 0
+	return sample_angles([Vector2(0,0),Vector2(0,0),Vector2(0,0),Vector2(35,0),Vector2(65,0),Vector2(60,0),Vector2(15,0),Vector2(-8,0)],phase).x * smoothstep(RUN_CONTACT,0.40,t) * (1.0-smoothstep(0.90,1.0,t))
+
+func run_pelvis_height(phase: float) -> float:
+	var t := fposmod(phase/TAU,0.5)
+	if t <= RUN_CONTACT:
+		var x := 30.0-t*TAU*RUN_DISTANCE_PER_RADIAN
+		return sqrt(79.0*79.0-x*x)+11.0-sin(t/RUN_CONTACT*PI)*7.0
+	var end_x := 30.0-RUN_CONTACT*TAU*RUN_DISTANCE_PER_RADIAN
+	var start := sqrt(79.0*79.0-end_x*end_x)+11.0
+	var finish := sqrt(79.0*79.0-30.0*30.0)+11.0
+	var u := (t-RUN_CONTACT)/(0.5-RUN_CONTACT)
+	return lerpf(start,finish,smoothstep(0,1,u))+sin(u*PI)*9
 
 func gait_height(phase: float) -> float:
 	var f := gait_angles(phase,true)
 	var b := gait_angles(phase+PI,false)
-	var reach := maxf(40*(cos(f.x)+cos(f.y)),40*(cos(b.x)+cos(b.y)))
-	var half_phase := fposmod(phase/TAU,0.5)
-	var flight := sin(clampf((half_phase-0.33)/0.17,0,1)*PI)*8*run_weight*move_weight
-	return reach+10+flight
+	var front_reach := 40*(cos(f.x)+cos(f.y))+sole_depth(foot_angle(phase))
+	var back_reach := 40*(cos(b.x)+cos(b.y))+sole_depth(foot_angle(phase+PI))
+	return lerpf(maxf(front_reach,back_reach)+flight_height(phase),run_pelvis_height(phase),run_weight*move_weight)
 
-func gait_leg(hip: Vector2,phase: float,front_leg: bool,tint: Color) -> void:
+func gait_leg_points(hip: Vector2,phase: float,front_leg: bool) -> Array[Vector2]:
 	var angles := gait_angles(phase,front_leg)
 	var k := hip+Vector2(sin(angles.x),cos(angles.x))*40
 	var ankle := k+Vector2(sin(angles.y),cos(angles.y))*40
-	segment(6,hip,k,29,tint)
-	segment(7,k,ankle,24,tint)
-	var p := fposmod(phase/TAU,1.0)
-	var toe := clampf(angles.y*0.22,-0.7,0.3)*move_weight if p>0.5 else 0.0
-	part(8,ankle+Vector2(8,-9),Vector2(34,19),toe,tint)
+	var run_target := run_ankle(phase)+Vector2(hip.x,0)
+	var weight := run_weight*move_weight
+	ankle = ankle.lerp(run_target,weight)
+	k = k.lerp(knee(hip,run_target,1),weight)
+	return [hip,k,ankle]
 
-func run_leg(hip: Vector2, phase: float, tint: Color) -> void:
-	var angles := run_angles(phase)
-	var k := hip + Vector2(sin(angles.x),cos(angles.x))*39
-	var ankle := k + Vector2(sin(angles.y),cos(angles.y))*40
-	# Keep the planted foot above the ground during compression.
-	if ankle.y > -7:
-		ankle.y = -7
-	segment(6,hip,k,29,tint)
-	segment(7,k,ankle,24,tint)
-	var toe := clampf(angles.y*0.27,-0.8,0.3)
-	part(8,ankle+Vector2(7,-5),Vector2(33,18),toe,tint)
+func gait_leg(hip: Vector2,phase: float,front_leg: bool,tint: Color) -> void:
+	var pose := gait_leg_points(hip,phase,front_leg)
+	segment(6,pose[0],pose[1],38 if front_leg else 33,tint)
+	segment(7,pose[1],pose[2],31 if front_leg else 27,tint)
+	var toe := lerpf(foot_angle(phase),run_foot_angle(phase),run_weight*move_weight)
+	part(8,pose[2]-Vector2(-5,8).rotated(toe),Vector2(34,19),toe,tint)
 
 func free_arm(shoulder: Vector2,phase: float,tint: Color) -> void:
 	var swing := -walk_angles(phase).lerp(run_angles(phase),run_weight).x * lerpf(0.7,0.9,run_weight)*move_weight
@@ -178,7 +231,7 @@ func _draw() -> void:
 		rotation = -fighter.facing * minf(fighter.dead_time * 4, PI/2)
 		position.y = -12
 		modulate.a = maxf(0.35, 1 - fighter.dead_time * 0.12)
-	var dark := Color(0.58,0.63,0.76)
+	var dark := Color(0.46,0.53,0.64)
 	var torso := hip + Vector2(2 + run_weight*13 - cover_weight*5,-47)
 	# Breathing moves the chest only; planted legs do not repeatedly buckle.
 	torso.y += sin(clock*2.8)*0.7*stand_weight
@@ -194,9 +247,9 @@ func _draw() -> void:
 	if holstered > 0 and fighter.health > 0:
 		part(2,torso+Vector2(-22,4),Vector2(89,26),-1.18,Color(0.8,0.85,0.95,holstered))
 	if locomotion:
-		gait_leg(hip+Vector2(-6,0),cycle+PI,false,dark)
+		gait_leg(hip,cycle+PI,false,dark)
 	else:
-		grounded_leg(hip+Vector2(-6,3),back,false,dark)
+		grounded_leg(hip,back,false,dark)
 	if equipped < 0.5 and not fighter.climbing and not fighter.in_cover:
 		free_arm(torso+Vector2(6,11),cycle+PI,dark)
 	elif equipped >= 0.5 and not fighter.climbing and not fighter.in_cover:
@@ -204,10 +257,11 @@ func _draw() -> void:
 		segment(3,torso+Vector2(10,9),torso+Vector2(34,38),27,dark)
 		segment(4,torso+Vector2(34,38),torso+Vector2(59,24),18,dark)
 	if locomotion:
-		gait_leg(hip+Vector2(5,0),cycle,true,Color.WHITE)
+		gait_leg(hip,cycle,true,Color.WHITE)
 	else:
-		grounded_leg(hip+Vector2(5,2),front,true,Color.WHITE)
-	fitted_waist(hip)
+		grounded_leg(hip,front,true,Color.WHITE)
+	# Flexible abdomen follows both chest lean and hip motion as one silhouette.
+	segment(5,torso+Vector2(0,37).rotated(lean),hip+Vector2(0,9),25)
 	part(1,torso,Vector2(56,58),lean)
 	part(0,torso+Vector2(4+run_weight*6,-34),Vector2(40,43),lean-0.04)
 	var shoulder := torso+Vector2(-9,9)
@@ -233,17 +287,22 @@ func _draw() -> void:
 	else:
 		var kick: float = fighter.recoil*6
 		var reach := (1.0-equipped)*34
-		part(2,torso+Vector2(32-kick-reach,13-reach),Vector2(99,29),-fighter.recoil*0.055-(1.0-equipped),Color(1,1,1,equipped))
+		var gun_at := torso+Vector2(32-kick-reach,13-reach)
+		var gun_angle: float = -fighter.recoil*0.055-(1.0-equipped)
+		var grip := gun_at+(Vector2(-24,79)*Vector2(0.99,0.29)).rotated(gun_angle)
+		elbow = torso+Vector2(-3,34)
+		part(11 if fighter.recoil>0.35 else 2,gun_at,Vector2(99,29),gun_angle,Color(1,1,1,equipped))
 		segment(3,shoulder,elbow,31)
-		segment(4,elbow,hand-Vector2(kick+reach,reach),19)
+		segment(4,elbow,grip,19)
+		part(10 if fighter.recoil>0.35 else 9,gun_at,Vector2(99,29),gun_angle,Color(1,1,1,equipped))
 		if fighter.recoil > 0.65:
 			var flash := torso+Vector2(85,24)
 			draw_colored_polygon(PackedVector2Array([flash+Vector2(0,-9),flash+Vector2(33,-3),flash+Vector2(16,0),flash+Vector2(39,8),flash+Vector2(0,7)]),Color(1,0.78,0.34,fighter.recoil))
 	if fighter.hurt_flash > 0:
 		draw_circle(torso+Vector2(0,30),42,Color(1,0.5,0.2,0.2))
 	if fighter.enemy and fighter.health > 0:
-		draw_rect(Rect2(-24,-174,48,3),Color("243243"))
-		draw_rect(Rect2(-24,-174,48*fighter.health/75,3),Color("f07855"))
+		draw_rect(Rect2(torso.x-24,torso.y-54,48,4),Color("243243"))
+		draw_rect(Rect2(torso.x-24,torso.y-54,48*fighter.health/75,4),Color("f07855"))
 
 
 
