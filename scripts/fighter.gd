@@ -5,6 +5,7 @@ var enemy := false
 var health := 100.0
 var facing := 1.0
 var climbing := false
+var active_ladder := Vector3.ZERO
 var crouching := false
 var in_cover := false
 var weapon_drawn := true
@@ -74,6 +75,8 @@ func _physics_process(dt: float) -> void:
 		gait += velocity.y * dt / 25
 	else:
 		gait = lerpf(gait, roundf(gait / PI) * PI, dt * 8)
+	if not enemy:
+		position.x = clampf(position.x,30,world.LEVEL_END-40)
 	if position.y > 1050:
 		take_damage(1000)
 	rig.queue_redraw()
@@ -83,7 +86,8 @@ func _update_player(dt: float) -> void:
 	if Input.is_action_just_pressed("toggle_weapon") and weapon_transition <= 0 and not climbing:
 		weapon_drawn = not weapon_drawn
 		weapon_transition = 0.28
-	var near_ladder: bool = absf(position.x - world.LADDER_X) < 40 and position.y >= 470 and position.y <= 733
+	var candidate: Vector3 = world.ladder_at(position)
+	var near_ladder := candidate != Vector3.ZERO
 	in_cover = Input.is_action_pressed("up") and is_on_floor() and not climbing and not near_ladder
 	crouching = Input.is_action_pressed("down") and is_on_floor() and not climbing
 	running = Input.is_action_pressed("run") and direction != 0 and not crouching and not in_cover and not climbing
@@ -97,17 +101,18 @@ func _update_player(dt: float) -> void:
 		facing = signf(direction)
 	coyote = 0.12 if is_on_floor() else maxf(0, coyote - dt)
 	jump_buffer = 0.14 if Input.is_action_just_pressed("jump") else maxf(0, jump_buffer - dt)
-	if near_ladder and not weapon_drawn and weapon_transition <= 0 and (Input.is_action_pressed("up") or (Input.is_action_pressed("down") and position.y < 530)):
+	if near_ladder and not weapon_drawn and weapon_transition <= 0 and (Input.is_action_pressed("up") or (Input.is_action_pressed("down") and position.y < candidate.y+50)):
+		active_ladder = candidate
 		climbing = true
 		collision_mask = 0
 	if climbing:
-		position.x = move_toward(position.x, world.LADDER_X, 260 * dt)
+		position.x = move_toward(position.x, active_ladder.x, 260 * dt)
 		velocity = Vector2(0, Input.get_axis("up", "down") * 145)
-		if position.y <= 480 and velocity.y < 0:
-			position.y = 479
+		if position.y <= active_ladder.y and velocity.y < 0:
+			position.y = active_ladder.y-1
 			_end_climb()
-		elif position.y >= 720 and velocity.y > 0:
-			position.y = 720
+		elif position.y >= active_ladder.z and velocity.y > 0:
+			position.y = active_ladder.z
 			_end_climb()
 		if Input.is_action_just_pressed("jump"):
 			_end_climb()

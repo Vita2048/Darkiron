@@ -36,6 +36,7 @@ func run() -> void:
 	for enemy in game.enemies:
 		enemy.set_physics_process(false)
 	var p: CharacterBody2D = game.player
+	game.grenades_left = 5 # Isolate cover blocking from pickup progression.
 	var initial_x: float = p.position.x
 	key(KEY_A,true)
 	key(KEY_W,true)
