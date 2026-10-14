@@ -1,0 +1,58 @@
+# Essential tracked files in this repo:
+#   project.godot, main.tscn, "Play Darkiron.cmd",
+#   scripts/*.gd + scripts/*.gd.uid,
+#   tests/*.gd + tests/*.gd.uid, tests/performance-*.json,
+#   assets/mountains.jpg + assets/mountains.jpg.import,
+#   assets/darkiron-rig.png + assets/darkiron-rig.png.import (retained reference, see README),
+#   README.md, PRINCE-REVIEW.md, assets/GENERATION.md
+# Everything below is regenerable, unused, or local-only.
+
+# --- Godot generated cache (recreated on editor import / run) ---
+.godot/
+
+# --- Generated renderer captures (recreate via `-- --capture` / `-- --visual`, see README) ---
+# ~58 MB total; includes preview.png and all preview-*.png test snapshots.
+/preview.png
+/preview.png.import
+/preview-*.png
+/preview-*.png.import
+
+# --- Unused / redundant reference art at repo root ---
+# Scenery already ships as assets/mountains.jpg (byte-for-byte copy of
+# distant_Paralax.png). None of these are preload()ed by scripts/*.gd.
+# Import mode is deliberately "keep", so only the stub .import files exist.
+/Background.png
+/Background.png.import
+/Darkiron.png
+/Darkiron.png.import
+/distant_Paralax.png
+/distant_Paralax.png.import
+/Enemy.png
+/Enemy.png.import
+
+# --- Godot logs, temp files, and test output ---
+*.tmp
+*.log
+test-output.log
+
+# --- Export / build outputs (never commit binaries) ---
+/builds/
+/export/
+/exports/
+*.pck
+*.exe
+*.zip
+export_templates/
+
+# --- OS and editor leftovers ---
+Thumbs.db
+desktop.ini
+.DS_Store
+*~
+*.bak
+*.orig
+*.rej
+.vs/
+.vscode/
+.idea/
+
