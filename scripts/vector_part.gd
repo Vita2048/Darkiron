@@ -3,13 +3,14 @@ extends Node2D
 const Armor = preload("res://scripts/vector_armor.gd")
 const Baker = preload("res://scripts/vector_mesh.gd")
 static var meshes: Dictionary = {}
+static var azure_shader: Shader
+static var azure_material: ShaderMaterial
 var index := -1
 var drake := false
 var hero := false
 var hybrid_body := false
 var azure := false
 const SvgBody = preload("res://scripts/svg_body.gd")
-const AzureBody = preload("res://scripts/azure_body.gd")
 const Hybrid = preload("res://scripts/hybrid_sprites.gd")
 const HybridHand = preload("res://scripts/hybrid_hand.gd")
 var mesh_key := -1
@@ -24,12 +25,12 @@ func configure(value: int,variant := false,hero_variant := false,body_variant :=
 		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if (hero or drake or azure_variant) else CanvasItem.TEXTURE_FILTER_PARENT_NODE
 		hybrid_body = body_variant
 		azure = azure_variant
-		material = null
+		material = _azure_material() if azure else null
 		mesh_key = index+(100 if drake else (200 if hero else (300 if azure else 0)))
 		if drake and DrakeSvg.supports(index):
 			queue_redraw()
 			return
-		if azure and AzureBody.supports(index):
+		if azure and SvgBody.supports(index):
 			queue_redraw()
 			return
 		if hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
@@ -60,8 +61,8 @@ func configure(value: int,variant := false,hero_variant := false,body_variant :=
 func _draw() -> void:
 	if drake and DrakeSvg.supports(index):
 		DrakeSvg.draw(self,index)
-	elif azure and AzureBody.supports(index):
-		AzureBody.draw(self,index)
+	elif azure and SvgBody.supports(index):
+		SvgBody.draw(self,index)
 	elif hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
 		SvgBody.draw(self,index)
 	elif drake and index in [2,11]:
@@ -70,3 +71,16 @@ func _draw() -> void:
 		draw_texture_rect_region(DrakeHead,Rect2(-54,-8,108,108),Rect2(55,115,1100,1035))
 	else:
 		draw_mesh(meshes[mesh_key],null)
+
+# Azure recolor: vivid v1 neon blue, computed on the unmodulated texel so the
+# same texel always maps to the same blue (consistent front/rear). Steel is a
+# bit-exact passthrough: fragment input COLOR already equals texel * vmod, so
+# non-warm pixels output COLOR unchanged, identical to no-shader rendering.
+static func _azure_material() -> ShaderMaterial:
+	if azure_material != null:
+		return azure_material
+	azure_shader = Shader.new()
+	azure_shader.code = "shader_type canvas_item;\nvarying vec4 vmod;\nvoid vertex() {\n\tvmod = COLOR;\n}\nvoid fragment() {\n\tvec4 base = COLOR;\n\tvec3 vrgb = max(vmod.rgb, vec3(0.0039));\n\tvec3 texel = clamp(base.rgb / vrgb, 0.0, 1.0);\n\tfloat mx = max(texel.r, max(texel.g, texel.b));\n\tfloat mn = min(texel.r, min(texel.g, texel.b));\n\tfloat sat = mx - mn;\n\tvec3 out_rgb = texel;\n\tif (base.a > 0.01 && texel.r > 0.32 && texel.r > texel.b + 0.08 && texel.r >= texel.g * 0.80 && sat > 0.16) {\n\t\tfloat lum = dot(texel, vec3(0.299, 0.587, 0.114));\n\t\tvec3 deep = vec3(0.04, 0.22, 0.95);\n\t\tvec3 neon = vec3(0.15, 0.88, 1.0);\n\t\tvec3 ramp = mix(deep, neon, clamp(lum * 1.7, 0.0, 1.0));\n\t\tout_rgb = ramp * (0.45 + mx * 1.15);\n\t\tif (lum > 0.75) {\n\t\t\tout_rgb = mix(out_rgb, vec3(0.75, 0.98, 1.0), (lum - 0.75) * 2.0);\n\t\t}\n\t}\n\tCOLOR = vec4(out_rgb * vmod.rgb, base.a);\n}\n"
+	azure_material = ShaderMaterial.new()
+	azure_material.shader = azure_shader
+	return azure_material
