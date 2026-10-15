@@ -86,6 +86,10 @@ func standing_points(front_leg: bool) -> Array[Vector2]:
 	var root := Vector2.ZERO
 	var k := root + Vector2(sin(a),cos(a))*40
 	var ankle := k + Vector2(sin(b),cos(b))*40
+	if not fighter.enemy and not front_leg:
+		root.x += 10.0
+		k.x += 10.0
+		ankle.x += 6.0
 	return [root,k,ankle]
 
 func standing_height() -> float:
@@ -142,6 +146,8 @@ func flight_height(phase: float) -> float:
 	var t := clampf((half_phase-0.31)/0.19,0,1)
 	return sin(t*PI)*sin(t*PI)*17*run_weight*move_weight
 
+const WALK_DISTANCE_PER_RADIAN := 18.0
+const WALK_CONTACT := 0.55
 const RUN_DISTANCE_PER_RADIAN := 24.5
 const RUN_CONTACT := 0.31
 
@@ -176,29 +182,51 @@ func run_pelvis_height(phase: float) -> float:
 	var u := (t-RUN_CONTACT)/(0.5-RUN_CONTACT)
 	return lerpf(start,finish,smoothstep(0,1,u))+sin(u*PI)*9
 
+func walk_ankle(phase: float) -> Vector2:
+	var t := fposmod(phase/TAU,1.0)
+	var release := 28.0-WALK_CONTACT*TAU*WALK_DISTANCE_PER_RADIAN
+	if t <= WALK_CONTACT:
+		return Vector2(28.0-t*TAU*WALK_DISTANCE_PER_RADIAN,-11)
+	var u := (t-WALK_CONTACT)/(1.0-WALK_CONTACT)
+	return Vector2(lerpf(release,28.0,smoothstep(0,1,u)),-11-sin(u*PI)*25)
+
+func walk_foot_angle(phase: float) -> float:
+	var t := fposmod(phase/TAU,1.0)
+	if t <= WALK_CONTACT: return 0.0
+	return sin((t-WALK_CONTACT)/(1.0-WALK_CONTACT)*TAU)*0.28
+
 func gait_height(phase: float) -> float:
-	var f := gait_angles(phase,true)
-	var b := gait_angles(phase+PI,false)
-	var front_reach := 40*(cos(f.x)+cos(f.y))+sole_depth(foot_angle(phase))
-	var back_reach := 40*(cos(b.x)+cos(b.y))+sole_depth(foot_angle(phase+PI))
-	return lerpf(maxf(front_reach,back_reach)+flight_height(phase),run_pelvis_height(phase),run_weight*move_weight)
+	var height := 90.0
+	for offset in [0.0,PI]:
+		if fposmod((phase+offset)/TAU,1.0)<=WALK_CONTACT:
+			var x := walk_ankle(phase+offset).x
+			height = minf(height,sqrt(79.0*79.0-x*x)+11.0)
+	return lerpf(standing_height(),lerpf(height,run_pelvis_height(phase),run_weight),move_weight)
 
 func gait_leg_points(hip: Vector2,phase: float,front_leg: bool) -> Array[Vector2]:
-	var angles := gait_angles(phase,front_leg)
-	var k := hip+Vector2(sin(angles.x),cos(angles.x))*40
-	var ankle := k+Vector2(sin(angles.y),cos(angles.y))*40
-	var run_target := run_ankle(phase)+Vector2(hip.x,0)
-	var weight := run_weight*move_weight
-	ankle = ankle.lerp(run_target,weight)
-	k = k.lerp(knee(hip,run_target,1),weight)
-	return [hip,k,ankle]
+	var rest := standing_points(front_leg)
+	var rest_ankle := Vector2(-4+rest[2].x,-11)
+	var target := walk_ankle(phase).lerp(run_ankle(phase),run_weight)+Vector2(hip.x,0)
+	var ankle := rest_ankle.lerp(target,move_weight)
+	var root := hip+rest[0]*(1.0-move_weight)
+	return [root,knee(root,ankle,1),ankle]
 
 func gait_leg(hip: Vector2,phase: float,front_leg: bool,tint: Color) -> void:
 	var pose := gait_leg_points(hip,phase,front_leg)
 	segment(6,pose[0],pose[1],38 if front_leg else 33,tint)
 	segment(7,pose[1],pose[2],31 if front_leg else 27,tint)
-	var toe := lerpf(foot_angle(phase),run_foot_angle(phase),run_weight*move_weight)
+	var toe := lerpf(walk_foot_angle(phase),run_foot_angle(phase),run_weight)*move_weight
 	part(8,pose[2]-Vector2(-5,8).rotated(toe),Vector2(34,19),toe,tint)
+
+# Solve the rear elbow branch with fixed bone lengths, keeping the wrist
+# on the grip through recoil and cover instead of compressing the forearm.
+func weapon_elbow(shoulder: Vector2,wrist: Vector2) -> Vector2:
+	var delta := wrist-shoulder
+	var d := clampf(delta.length(),0.01,65.9)
+	var axis := delta.normalized()
+	var along := (36.0*36.0-30.0*30.0+d*d)/(2*d)
+	var height := sqrt(maxf(0,36.0*36.0-along*along))
+	return shoulder+axis*along+Vector2(-axis.y,axis.x)*height
 
 func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 	var swing := -walk_angles(phase).lerp(run_angles(phase),run_weight).x * lerpf(0.7,0.9,run_weight)*move_weight
@@ -321,6 +349,8 @@ func _draw() -> void:
 		var cover_gun := torso+Vector2(0 if hybrid else 18,7)
 		if hybrid:
 			hand = cover_gun+(Vector2(-24,79)*Vector2(0.94,0.27)).rotated(-1.4)
+		if not fighter.enemy:
+			elbow = weapon_elbow(shoulder,hand)
 		if equipped > 0:
 			part(2,cover_gun,Vector2(94,27),-1.4,Color(1,1,1,equipped))
 		segment(3,shoulder,elbow,31)
@@ -335,7 +365,7 @@ func _draw() -> void:
 		var gun_at := torso+Vector2(32-kick-reach,13-reach)
 		var gun_angle: float = -fighter.recoil*0.055-(1.0-equipped)
 		var grip := gun_at+(Vector2(-24,79)*Vector2(0.99,0.29)).rotated(gun_angle)
-		elbow = torso+Vector2(-3,34)
+		elbow = weapon_elbow(shoulder,grip) if not fighter.enemy else torso+Vector2(-3,34)
 		part(11 if fighter.recoil>0.35 else 2,gun_at,Vector2(99,29),gun_angle,Color(1,1,1,equipped))
 		segment(3,shoulder,elbow,31)
 		segment(4,elbow,grip,19,Color.WHITE,false)

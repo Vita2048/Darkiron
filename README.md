@@ -65,3 +65,5 @@ Godot imports SVG artwork to cached textures; this is SVG-authored artwork, not 
 ## SVG Obsidian Drake body
 
 The first guard uses `enemy-body-torso.svg`, `drake-body-arms.svg`, `drake-body-legs.svg`, and `drake-body-tail.svg` through `scripts/drake_svg_body.gd`. Four overlapping tail sections sway behind the pelvis. Existing Drake head and rifle assets remain in use. Other guards and Darkiron retain their own renderers. `tests/drake_svg.gd` captures white-background movement poses and checks module selection; `tests/drake_visual.gd` checks the actual first guard, cover, death and dropped weapon.
+
+Player aiming and cover use a fixed-length two-bone arm solve with the elbow behind the shoulder, and the standing rear foot is staggered forward. Walking now uses a distance-driven planted phase shared by Darkiron, Drake and procedural guards. `tests/walk_contact.gd` measures actual world-space foot drift for both enemy types in both directions; `tests/run_contact.gd` covers running.

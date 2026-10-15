@@ -31,13 +31,19 @@ static func module(canvas: Node2D,texture: Texture2D,region: Rect2,a: Vector2,b:
 # Straighten the painted vambrace around its centerline instead of tilting a
 # single rectangular crop. Both visible hinges stay on the bone axis.
 static func forearm(canvas: Node2D) -> void:
-	var rows := [Vector2(985,110),Vector2(1010,198),Vector2(1055,300),Vector2(1100,420),Vector2(1130,520),Vector2(1123,593),Vector2(1123,676)]
+	# Compress the cap behind the pivot: its full painted length otherwise
+	# sticks out past a bent arm like a cog instead of making an L corner.
+	# This shared mesh is used by aiming, cover and locomotion alike.
+	var rows := [Vector2(1010,110),Vector2(1010,198),Vector2(1090,300),Vector2(1140,420),Vector2(1145,520),Vector2(1123,593),Vector2(1123,676)]
 	for i in range(rows.size()-1):
 		var vertices := PackedVector2Array()
 		var uv := PackedVector2Array()
-		for corner in [Vector2(968,rows[i].y),Vector2(1255,rows[i].y),Vector2(1255,rows[i+1].y),Vector2(968,rows[i+1].y)]:
+		for corner in [Vector2(950,rows[i].y),Vector2(1255,rows[i].y),Vector2(1255,rows[i+1].y),Vector2(950,rows[i+1].y)]:
 			var center: float = rows[i].x if corner.y==rows[i].y else rows[i+1].x
-			vertices.append(Vector2((corner.x-center)*78.0/350.0,(corner.y-198.0)*100.0/395.0))
+			var along: float = (corner.y-198.0)*100.0/395.0
+			if along < 0:
+				along *= 0.40
+			vertices.append(Vector2((corner.x-center)*78.0/350.0,along))
 			uv.append(corner/ARMS.get_size())
 		canvas.draw_polygon(vertices,PackedColorArray([Color.WHITE]),uv,ARMS)
 
@@ -47,7 +53,9 @@ static func draw(canvas: Node2D,index: int) -> void:
 		1: canvas.draw_texture_rect_region(TORSO,Rect2(-46,-5,92,111),Rect2(323,53,724,1108))
 		2,11: canvas.draw_texture_rect_region(RIFLE,Weapon.rifle_rect(false),Weapon.source(false))
 		# Joint centers, rather than rectangular atlas edges, define each bone.
-		3: module(canvas,ARMS,Rect2(298,54,400,622),Vector2(510,245),Vector2(453,603),105)
+		# The forearm owns the complete elbow cap; end the upper arm inside
+		# that cap so a second hinge cannot protrude below a bent elbow.
+		3: module(canvas,ARMS,Rect2(298,54,400,556),Vector2(510,245),Vector2(453,603),105)
 		4: forearm(canvas)
 		6: module(canvas,LEGS,Rect2(253,9,324,694),Vector2(415,72),Vector2(456,620),72)
 		7: module(canvas,LEGS,Rect2(926,12,286,685),Vector2(1045,103),Vector2(1087,634),75)
@@ -67,8 +75,11 @@ static func draw(canvas: Node2D,index: int) -> void:
 			module(canvas,ARMS,GLOVE,Vector2(1740,300),Vector2(1790,620),100)
 			canvas.draw_set_transform(Vector2.ZERO)
 		9,10:
+			# Rotate the glove up in rig pixels, compensating for the gun part's
+			# nonuniform scale so the wrist stays fixed and the glove is not skewed.
+			var weapon_scale := Transform2D.IDENTITY.scaled(Vector2(0.99,0.29))
+			var twist := weapon_scale.affine_inverse()*Transform2D(-0.85,Vector2.ZERO)*weapon_scale
+			twist.origin = Weapon.GRIP-twist.basis_xform(Weapon.GRIP)
+			canvas.draw_set_transform_matrix(twist)
 			canvas.draw_texture_rect_region(ARMS,Rect2(-32,59,17,44),GLOVE)
-			var tip := -18.0 if index==10 else -15.0
-			var points := PackedVector2Array([Vector2(-24,70),Vector2(-21,63),Vector2(tip,62),Vector2(tip,69),Vector2(-21,73)])
-			canvas.draw_polyline(points,Color("0c121a"),4.8,true)
-			canvas.draw_polyline(points,Color("8495a1"),2.5,true)
+			canvas.draw_set_transform_matrix(Transform2D.IDENTITY)

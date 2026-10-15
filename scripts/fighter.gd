@@ -88,7 +88,7 @@ func _physics_process(dt: float) -> void:
 	var before_move := position
 	move_and_slide()
 	if is_on_floor() and absf(velocity.x) > 10:
-		gait += absf(position.x-before_move.x) / (Rig.RUN_DISTANCE_PER_RADIAN if running else 35.0)
+		gait += absf(position.x-before_move.x) / (Rig.RUN_DISTANCE_PER_RADIAN if running else Rig.WALK_DISTANCE_PER_RADIAN)
 	elif climbing:
 		gait += velocity.y * dt / 25
 	else:

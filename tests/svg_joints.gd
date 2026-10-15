@@ -46,9 +46,29 @@ func run() -> void:
 	p.rig.stand_weight = 1
 	p.velocity = Vector2.ZERO
 	await capture("idle")
+	p.facing = -1
+	await capture("idle-left")
+	p.facing = 1
+	assert(p.rig.standing_points(false)[0].x-p.rig.standing_points(true)[0].x>9)
+	for wrist in [Vector2(8.24,35.91),Vector2(17,33),Vector2(2.24,34.6)]:
+		var shoulder := Vector2(-9,9)
+		var elbow: Vector2 = p.rig.weapon_elbow(shoulder,wrist)
+		assert(absf(elbow.distance_to(shoulder)-36)<0.01)
+		assert(absf(elbow.distance_to(wrist)-30)<0.01)
+		assert(elbow.y>wrist.y+5)
 	p.weapon_drawn = true
 	p.weapon_blend = 1
 	await capture("aim")
+	p.facing = -1
+	await capture("aim-left")
+	p.facing = 1
+	p.in_cover = true
+	p.rig.stand_weight = 0
+	await capture("cover")
+	p.facing = -1
+	await capture("cover-left")
+	p.facing = 1
+	p.in_cover = false
 	p.weapon_blend = 0
 	p.climbing = true
 	p.rig.stand_weight = 0
