@@ -10,6 +10,8 @@ func run() -> void:
 	game = load("res://main.tscn").instantiate()
 	root.add_child(game)
 	await frames(15)
+	root.mode = Window.MODE_WINDOWED
+	root.size = Vector2i(1280,900)
 	game.set_process(false)
 	game.set_physics_process(false)
 	game.ui.visible = false

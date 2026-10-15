@@ -46,12 +46,12 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 	if fighter.drake:
 		match index:
 			0: breadth = 1.0
-			1: breadth = 1.30
-			3: breadth = 1.48
-			4: breadth = 1.32
+			1: breadth = 1.18
+			3: breadth = 1.30
+			4: breadth = 1.15
 			6: breadth = 1.18
 			7: breadth = 1.18
-			8: breadth = 1.15
+			8: breadth = 1.0
 	node.scale = size*Vector2(breadth,1.0)/100.0
 	node.modulate = tint
 	node.z_index = part_cursor
@@ -59,7 +59,7 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 	part_cursor += 1
 
 func segment(index: int, a: Vector2, b: Vector2, width: float, tint := Color.WHITE,glove := true) -> void:
-	var hybrid: bool = not fighter.enemy and fighter.hybrid_body
+	var hybrid: bool = fighter.drake or (not fighter.enemy and fighter.hybrid_body)
 	var length := a.distance_to(b)
 	var angle := (b-a).angle()-PI/2
 	part(index,a,Vector2(width,length if hybrid and index in [3,4,6,7] else length+7),angle,tint)
@@ -76,7 +76,7 @@ func leg(hip: Vector2, foot: Vector2, tint: Color) -> void:
 	var k := knee(hip, foot, 1)
 	segment(6, hip, k, 29, tint)
 	segment(7, k, foot, 24, tint)
-	part(8, foot + (Vector2(5,-8) if not fighter.enemy and fighter.hybrid_body else Vector2(8,-9)), Vector2(34,19), 0, tint)
+	part(8, foot + (Vector2(5,-8) if fighter.drake or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)), Vector2(34,19), 0, tint)
 
 # Adapted from Prince PS.stand / skeleton: explicit mild leg angles and hip
 # height derived from their vertical reach, not a lowered hip with bent IK knees.
@@ -99,7 +99,7 @@ func grounded_leg(hip: Vector2,foot: Vector2,front_leg: bool,tint: Color) -> voi
 	var ankle := foot.lerp(base+standing[2],stand_weight)
 	segment(6,root,k,38 if front_leg else 33,tint)
 	segment(7,k,ankle,31 if front_leg else 27,tint)
-	part(8,ankle+(Vector2(5,-8) if not fighter.enemy and fighter.hybrid_body else Vector2(8,-9)),Vector2(34,19),0,tint)
+	part(8,ankle+(Vector2(5,-8) if fighter.drake or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)),Vector2(34,19),0,tint)
 
 # Contact, weight-bearing, push-off, heel recovery, knee drive, extension.
 # Explicit joint poses keep the rear knee folded instead of bicycling both feet.
@@ -207,7 +207,7 @@ func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 	var hand := elbow + Vector2(sin(swing+bend),cos(swing+bend))*27
 	segment(3,shoulder,elbow,28,tint)
 	segment(4,elbow,hand,19,tint,false)
-	if not fighter.enemy and fighter.hybrid_body:
+	if fighter.drake or (not fighter.enemy and fighter.hybrid_body):
 		var wrist_angle := (hand-elbow).angle()-PI/2
 		part(14 if far else 13,hand,Vector2(10,12) if far else Vector2(12,13),wrist_angle-0.10,tint)
 
@@ -249,7 +249,7 @@ func _draw() -> void:
 		rotation = -fighter.facing * minf(fighter.dead_time * 4, PI/2)
 		position.y = -12
 		modulate.a = maxf(0.35, 1 - fighter.dead_time * 0.12)
-	var dark := Color(0.62,0.65,0.70) if not fighter.enemy else Color(0.46,0.53,0.64)
+	var dark := Color(0.62,0.65,0.70) if not fighter.enemy or fighter.drake else Color(0.46,0.53,0.64)
 	var torso := hip + Vector2(2 + run_weight*13 - cover_weight*5,-47)
 	# Breathing moves the chest only; planted legs do not repeatedly buckle.
 	torso.y += sin(clock*2.8)*0.7*stand_weight
@@ -262,7 +262,15 @@ func _draw() -> void:
 	if fighter.health <= 0:
 		equipped = 0
 	if fighter.drake:
-		part(12,hip+Vector2(-8,3),Vector2(65,65),sin(clock*2.8)*0.07+run_weight*0.15,Color(0.85,0.82,0.91))
+		var tail_at := hip+Vector2(-10,5)
+		for i in 4:
+			var length: float = [36.0,30.0,24.0,23.0][i]
+			var height: float = [24.0,19.0,15.0,27.0][i]
+			var tilt: float = [0.12,-0.06,-0.22,-0.20][i]+sin(clock*2.8-i*0.5)*0.05
+			part(12 if i==0 else 14+i,tail_at,Vector2(length,height),-tilt,Color(0.85,0.82,0.91))
+			var source_slope: float = [60.0/445.0,50.0/315.0,45.0/265.0,0.0][i]
+			tail_at += Vector2(-length+2,source_slope*height).rotated(-tilt)
+
 	# The coat is intentionally removed. The slung shotgun sits close to the back.
 	if holstered > 0 and fighter.health > 0:
 		part(2,torso+Vector2(-22,4),Vector2(89,26),-1.18,Color(0.8,0.85,0.95,holstered))
@@ -286,7 +294,7 @@ func _draw() -> void:
 	# Flexible abdomen follows both chest lean and hip motion as one silhouette.
 	# The painted abdomen already overlaps the hip sockets. Adding the old
 	# vector pelvis here would leave a flat gray plate outside the silhouette.
-	if fighter.enemy or not fighter.hybrid_body:
+	if not fighter.drake and (fighter.enemy or not fighter.hybrid_body):
 		segment(5,torso+Vector2(0,37).rotated(lean),hip+Vector2(0,9),25)
 	part(1,torso,Vector2(56,58),lean)
 	if fighter.drake:

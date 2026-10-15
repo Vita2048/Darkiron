@@ -11,6 +11,7 @@ const SvgBody = preload("res://scripts/svg_body.gd")
 const Hybrid = preload("res://scripts/hybrid_sprites.gd")
 const HybridHand = preload("res://scripts/hybrid_hand.gd")
 var mesh_key := -1
+const DrakeSvg = preload("res://scripts/drake_svg_body.gd")
 const Drake = preload("res://scripts/drake_armor.gd")
 const DrakeHead = preload("res://assets/drake-head.png")
 func configure(value: int,variant := false,hero_variant := false,body_variant := false) -> void:
@@ -18,9 +19,12 @@ func configure(value: int,variant := false,hero_variant := false,body_variant :=
 		index = value
 		drake = variant
 		hero = hero_variant
-		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if hero else CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if hero or drake else CanvasItem.TEXTURE_FILTER_PARENT_NODE
 		hybrid_body = body_variant
 		mesh_key = index+(100 if drake else (200 if hero else 0))
+		if drake and DrakeSvg.supports(index):
+			queue_redraw()
+			return
 		if hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
 			queue_redraw()
 			return
@@ -47,7 +51,9 @@ func configure(value: int,variant := false,hero_variant := false,body_variant :=
 			meshes[mesh_key] = baker.build()
 		queue_redraw()
 func _draw() -> void:
-	if hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
+	if drake and DrakeSvg.supports(index):
+		DrakeSvg.draw(self,index)
+	elif hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
 		SvgBody.draw(self,index)
 	elif drake and index in [2,11]:
 		draw_texture_rect_region(Hybrid.DRAKE_RIFLE,Hybrid.rifle_rect(drake),Hybrid.source(drake))

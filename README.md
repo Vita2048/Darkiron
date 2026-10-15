@@ -61,3 +61,7 @@ Godot imports SVG artwork to cached textures; this is SVG-authored artwork, not 
 `tests/modular_body.gd` captures walk/run cycles, climbing, idle, aiming, recoil, left-facing, crouch and cover poses, and checks SVG transparency and the procedural fallback. Run with a graphical Godot renderer to capture `preview-body-*.png`.
 
 `tests/svg_joints.gd` checks transparency and captures both walking/running directions, idle, aim and climb on the white `debug_movement.tscn` background. The boot crop excludes its redundant upper cuff and aligns the visible ankle hinge to the shin endpoint. Forearm and glove anchors use the elbow/wrist hinges. Sole height and running contact timing are preserved.
+
+## SVG Obsidian Drake body
+
+The first guard uses `enemy-body-torso.svg`, `drake-body-arms.svg`, `drake-body-legs.svg`, and `drake-body-tail.svg` through `scripts/drake_svg_body.gd`. Four overlapping tail sections sway behind the pelvis. Existing Drake head and rifle assets remain in use. Other guards and Darkiron retain their own renderers. `tests/drake_svg.gd` captures white-background movement poses and checks module selection; `tests/drake_visual.gd` checks the actual first guard, cover, death and dropped weapon.
