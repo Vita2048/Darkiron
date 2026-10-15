@@ -3,6 +3,7 @@ extends CharacterBody2D
 const Rig = preload("res://scripts/rig.gd")
 var enemy := false
 var drake := false
+var azure := false
 # Reversible rendering choice; does not change collision or animation bones.
 var hybrid_body := true
 var health := 100.0
@@ -61,7 +62,7 @@ func _ready() -> void:
 		health = 75
 		facing = -1
 		cooldown = 1.4
-		modulate = Color.WHITE if drake else Color(0.77, 0.95, 1.0)
+		modulate = Color.WHITE if (drake or azure) else Color(0.77, 0.95, 1.0)
 
 func _physics_process(dt: float) -> void:
 	cooldown = maxf(0, cooldown - dt)
@@ -230,6 +231,7 @@ func take_damage(amount: float,hit_color := Color("ff9b56")) -> void:
 		dropped_weapon = preload("res://scripts/dropped_weapon.gd").new()
 		dropped_weapon.world = world
 		dropped_weapon.drake = drake
+		dropped_weapon.azure = azure
 		dropped_weapon.hero = not enemy
 		dropped_weapon.position = position + Vector2(facing*35,-115)
 		dropped_weapon.velocity = Vector2(facing*110,-150)

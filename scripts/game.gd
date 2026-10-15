@@ -80,7 +80,11 @@ func _ready() -> void:
 	for spawn in [Vector2(825,720),Vector2(1900,480),Vector2(2520,480),Vector2(3240,720),Vector2(4690,720),Vector2(5580,480)]:
 		var enemy := Fighter.new()
 		enemy.enemy = true
-		enemy.drake = enemies.is_empty()
+		# Split the squad into thirds: drake look, vector look, azure Darkiron look.
+		# Round-robin keeps each look spread across the level.
+		var slot := enemies.size() % 3
+		enemy.drake = slot == 0
+		enemy.azure = slot == 2
 		enemy.world = self
 		enemy.position = spawn
 		add_child(enemy)

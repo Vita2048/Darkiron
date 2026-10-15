@@ -30,7 +30,7 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 		add_child(node)
 		parts.append(node)
 	var node := parts[part_cursor]
-	node.configure(index,fighter.drake,not fighter.enemy,fighter.hybrid_body and not fighter.enemy)
+	node.configure(index,fighter.drake,not fighter.enemy,(fighter.hybrid_body and not fighter.enemy) or fighter.azure,fighter.azure)
 	node.position = at
 	node.rotation = angle
 	# Keep limb lengths and joint positions stable while balancing the silhouette.
@@ -42,7 +42,7 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 		4: breadth = 1.18
 		6: breadth = 0.87
 		7: breadth = 0.90
-	if not fighter.enemy and index==0: breadth = 1.0
+	if (not fighter.enemy or fighter.azure) and index==0: breadth = 1.0
 	if fighter.drake:
 		match index:
 			0: breadth = 1.0
@@ -59,7 +59,7 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 	part_cursor += 1
 
 func segment(index: int, a: Vector2, b: Vector2, width: float, tint := Color.WHITE,glove := true) -> void:
-	var hybrid: bool = fighter.drake or (not fighter.enemy and fighter.hybrid_body)
+	var hybrid: bool = fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body)
 	var length := a.distance_to(b)
 	var angle := (b-a).angle()-PI/2
 	part(index,a,Vector2(width,length if hybrid and index in [3,4,6,7] else length+7),angle,tint)
@@ -76,7 +76,7 @@ func leg(hip: Vector2, foot: Vector2, tint: Color) -> void:
 	var k := knee(hip, foot, 1)
 	segment(6, hip, k, 29, tint)
 	segment(7, k, foot, 24, tint)
-	part(8, foot + (Vector2(5,-8) if fighter.drake or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)), Vector2(34,19), 0, tint)
+	part(8, foot + (Vector2(5,-8) if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)), Vector2(34,19), 0, tint)
 
 # Adapted from Prince PS.stand / skeleton: explicit mild leg angles and hip
 # height derived from their vertical reach, not a lowered hip with bent IK knees.
@@ -86,7 +86,7 @@ func standing_points(front_leg: bool) -> Array[Vector2]:
 	var root := Vector2.ZERO
 	var k := root + Vector2(sin(a),cos(a))*40
 	var ankle := k + Vector2(sin(b),cos(b))*40
-	if not fighter.enemy and not front_leg:
+	if (not fighter.enemy or fighter.azure) and not front_leg:
 		root.x += 10.0
 		k.x += 10.0
 		ankle.x += 6.0
@@ -103,7 +103,7 @@ func grounded_leg(hip: Vector2,foot: Vector2,front_leg: bool,tint: Color) -> voi
 	var ankle := foot.lerp(base+standing[2],stand_weight)
 	segment(6,root,k,38 if front_leg else 33,tint)
 	segment(7,k,ankle,31 if front_leg else 27,tint)
-	part(8,ankle+(Vector2(5,-8) if fighter.drake or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)),Vector2(34,19),0,tint)
+	part(8,ankle+(Vector2(5,-8) if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)),Vector2(34,19),0,tint)
 
 # Contact, weight-bearing, push-off, heel recovery, knee drive, extension.
 # Explicit joint poses keep the rear knee folded instead of bicycling both feet.
@@ -235,7 +235,7 @@ func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 	var hand := elbow + Vector2(sin(swing+bend),cos(swing+bend))*27
 	segment(3,shoulder,elbow,28,tint)
 	segment(4,elbow,hand,19,tint,false)
-	if fighter.drake or (not fighter.enemy and fighter.hybrid_body):
+	if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body):
 		var wrist_angle := (hand-elbow).angle()-PI/2
 		part(14 if far else 13,hand,Vector2(10,12) if far else Vector2(12,13),wrist_angle-0.10,tint)
 
@@ -277,7 +277,7 @@ func _draw() -> void:
 		rotation = -fighter.facing * minf(fighter.dead_time * 4, PI/2)
 		position.y = -12
 		modulate.a = maxf(0.35, 1 - fighter.dead_time * 0.12)
-	var dark := Color(0.62,0.65,0.70) if not fighter.enemy or fighter.drake else Color(0.46,0.53,0.64)
+	var dark := Color(0.62,0.65,0.70) if (not fighter.enemy or fighter.drake or fighter.azure) else Color(0.46,0.53,0.64)
 	var torso := hip + Vector2(2 + run_weight*13 - cover_weight*5,-47)
 	# Breathing moves the chest only; planted legs do not repeatedly buckle.
 	torso.y += sin(clock*2.8)*0.7*stand_weight
@@ -312,7 +312,7 @@ func _draw() -> void:
 		# Rear arm supports the fore-end while the near hand holds the trigger grip.
 		segment(3,torso+Vector2(10,9),torso+Vector2(34,38),27,dark)
 		var support := torso+Vector2(59,24)
-		if fighter.drake or not fighter.enemy:
+		if fighter.drake or fighter.azure or not fighter.enemy:
 			support = torso+Vector2(32,13)+preload("res://scripts/hybrid_sprites.gd").support_grip(fighter.drake)*Vector2(0.99,0.29)
 		segment(4,torso+Vector2(34,38),support,18,dark)
 	if locomotion:
@@ -322,14 +322,14 @@ func _draw() -> void:
 	# Flexible abdomen follows both chest lean and hip motion as one silhouette.
 	# The painted abdomen already overlaps the hip sockets. Adding the old
 	# vector pelvis here would leave a flat gray plate outside the silhouette.
-	if not fighter.drake and (fighter.enemy or not fighter.hybrid_body):
+	if not fighter.drake and not fighter.azure and (fighter.enemy or not fighter.hybrid_body):
 		segment(5,torso+Vector2(0,37).rotated(lean),hip+Vector2(0,9),25)
 	part(1,torso,Vector2(56,58),lean)
 	if fighter.drake:
 		part(0,torso+Vector2(-5+run_weight*6,-47),Vector2(52,54),lean-0.04)
 	else:
-		var head_size := Vector2(34,37) if not fighter.enemy else Vector2(40,43)
-		var head_top := -29.0 if not fighter.enemy else -34.0
+		var head_size := Vector2(34,37) if (not fighter.enemy or fighter.azure) else Vector2(40,43)
+		var head_top := -29.0 if (not fighter.enemy or fighter.azure) else -34.0
 		part(0,torso+Vector2(4+run_weight*6,head_top),head_size,lean-0.04)
 	var shoulder := torso+Vector2(-9,9)
 	var elbow := torso+Vector2(12,33)
@@ -345,11 +345,11 @@ func _draw() -> void:
 		# Keep the hand anchored to the actual pistol grip while the rifle rotates upright.
 		elbow = torso+Vector2(-17,36)
 		hand = torso+Vector2(3,24)
-		var hybrid: bool = fighter.drake or not fighter.enemy
+		var hybrid: bool = fighter.drake or fighter.azure or not fighter.enemy
 		var cover_gun := torso+Vector2(0 if hybrid else 18,7)
 		if hybrid:
 			hand = cover_gun+(Vector2(-24,79)*Vector2(0.94,0.27)).rotated(-1.4)
-		if not fighter.enemy:
+		if not fighter.enemy or fighter.azure:
 			elbow = weapon_elbow(shoulder,hand)
 		if equipped > 0:
 			part(2,cover_gun,Vector2(94,27),-1.4,Color(1,1,1,equipped))
@@ -365,14 +365,14 @@ func _draw() -> void:
 		var gun_at := torso+Vector2(32-kick-reach,13-reach)
 		var gun_angle: float = -fighter.recoil*0.055-(1.0-equipped)
 		var grip := gun_at+(Vector2(-24,79)*Vector2(0.99,0.29)).rotated(gun_angle)
-		elbow = weapon_elbow(shoulder,grip) if not fighter.enemy else torso+Vector2(-3,34)
+		elbow = weapon_elbow(shoulder,grip) if (not fighter.enemy or fighter.azure) else torso+Vector2(-3,34)
 		part(11 if fighter.recoil>0.35 else 2,gun_at,Vector2(99,29),gun_angle,Color(1,1,1,equipped))
 		segment(3,shoulder,elbow,31)
 		segment(4,elbow,grip,19,Color.WHITE,false)
 		part(10 if fighter.recoil>0.35 else 9,gun_at,Vector2(99,29),gun_angle,Color(1,1,1,equipped))
 		if fighter.recoil > 0.65:
 			var flash := torso+Vector2(85,24)
-			if fighter.drake or not fighter.enemy:
+			if fighter.drake or fighter.azure or not fighter.enemy:
 				flash = gun_at+(Vector2(46,38)*Vector2(0.99,0.29)).rotated(gun_angle)
 			draw_colored_polygon(PackedVector2Array([flash+Vector2(0,-9),flash+Vector2(33,-3),flash+Vector2(16,0),flash+Vector2(39,8),flash+Vector2(0,7)]),Color(1,0.78,0.34,fighter.recoil))
 	if fighter.enemy and fighter.health > 0:
