@@ -43,3 +43,21 @@ The first yard guard now uses a generated dragon helmet inspired by Enemy.png, c
 Body hits now use additive blue/red bloom matching the projectile, a white-hot core and matching sparks. The old orange hit disc has been removed.
 
 `tests/drake_visual.gd` captures idle, stride, turning, cover and death close-ups and verifies the variant's dropped weapon. `tests/enemy_cover.gd` exercises the new enemy in actual combat.
+
+## Hybrid head and rifle artwork
+
+Darkiron now uses a reference-based raster helmet and orange-lit black/red rifle; the Obsidian Drake uses a reference-based scoped purple rifle and bayonet. These sprites are integrated into the existing vector skeleton. Hands remain articulated vector parts; grip and muzzle anchors align the artwork with aiming, recoil, cover and muzzle flashes. Matching weapons are used when sheathed and dropped.
+
+Generated assets: `assets/darkiron-head-hybrid.png`, `assets/darkiron-rifle-hybrid.png`, `assets/drake-rifle-hybrid.png`. Exact built-in image-generation prompts are in `assets/HYBRID-EQUIPMENT-PROMPTS.md`. Original `Darkiron.png` and `Enemy.png` remain unchanged.
+
+`tests/hybrid_equipment.gd` renders both characters in aiming, recoil, turning, cover, sheathed and dropped-weapon states. Controls and full-level regression also pass.
+
+## SVG Darkiron player
+
+The hero now uses `darkiron-body-torso.svg`, `darkiron-body-arms.svg`, `darkiron-body-legs.svg`, `darkiron-body-head.svg`, and `darkiron-rifle.svg`, assembled by `scripts/svg_body.gd` on the existing articulated rig. The corrected body SVGs are used without modifying their paths, preserving their filled armor interiors and transparent backgrounds. Helmet proportions, arm widths, wrist pivots and rear-limb shading have been adjusted for a more coherent silhouette. The coat remains omitted.
+
+Godot imports SVG artwork to cached textures; this is SVG-authored artwork, not runtime tessellation. The rifle uses the same grip/muzzle mapping when held, slung or dropped. `player.hybrid_body = false` still selects the older procedural body for comparison; the SVG helmet and rifle remain consistent. The earlier raster assets are retained as source experiments.
+
+`tests/modular_body.gd` captures walk/run cycles, climbing, idle, aiming, recoil, left-facing, crouch and cover poses, and checks SVG transparency and the procedural fallback. Run with a graphical Godot renderer to capture `preview-body-*.png`.
+
+`tests/svg_joints.gd` checks transparency and captures both walking/running directions, idle, aim and climb on the white `debug_movement.tscn` background. The boot crop excludes its redundant upper cuff and aligns the visible ankle hinge to the shin endpoint. Forearm and glove anchors use the elbow/wrist hinges. Sole height and running contact timing are preserved.

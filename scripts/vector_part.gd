@@ -1,21 +1,33 @@
 extends Node2D
-## Shared, retained vector meshes. Only transforms change during animation.
+## Retained vector meshes and textured modules; animation updates transforms.
 const Armor = preload("res://scripts/vector_armor.gd")
 const Baker = preload("res://scripts/vector_mesh.gd")
 static var meshes: Dictionary = {}
 var index := -1
 var drake := false
+var hero := false
+var hybrid_body := false
+const SvgBody = preload("res://scripts/svg_body.gd")
+const Hybrid = preload("res://scripts/hybrid_sprites.gd")
+const HybridHand = preload("res://scripts/hybrid_hand.gd")
 var mesh_key := -1
 const Drake = preload("res://scripts/drake_armor.gd")
 const DrakeHead = preload("res://assets/drake-head.png")
-func configure(value: int,variant := false) -> void:
-	if index != value or drake != variant:
+func configure(value: int,variant := false,hero_variant := false,body_variant := false) -> void:
+	if index != value or drake != variant or hero != hero_variant or hybrid_body != body_variant:
 		index = value
 		drake = variant
-		mesh_key = index+(100 if drake else 0)
+		hero = hero_variant
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if hero else CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		hybrid_body = body_variant
+		mesh_key = index+(100 if drake else (200 if hero else 0))
+		if hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
+			queue_redraw()
+			return
 		if not meshes.has(mesh_key):
 			var baker := Baker.new()
-			(Drake.new() if drake else Armor.new()).paint(baker,index,Color.WHITE)
+			var painter = HybridHand.new() if (drake or hero) and index in [9,10] else (Drake.new() if drake else Armor.new())
+			painter.paint(baker,index,Color.WHITE)
 			# Shape the chest and lower thigh without widening the hip socket.
 			for i in baker.vertices.size():
 				var vertex: Vector3 = baker.vertices[i]
@@ -35,7 +47,11 @@ func configure(value: int,variant := false) -> void:
 			meshes[mesh_key] = baker.build()
 		queue_redraw()
 func _draw() -> void:
-	if drake and index==0:
+	if hero and ((hybrid_body and SvgBody.supports(index)) or index in [0,2,11]):
+		SvgBody.draw(self,index)
+	elif drake and index in [2,11]:
+		draw_texture_rect_region(Hybrid.DRAKE_RIFLE,Hybrid.rifle_rect(drake),Hybrid.source(drake))
+	elif drake and index==0:
 		draw_texture_rect_region(DrakeHead,Rect2(-54,-8,108,108),Rect2(55,115,1100,1035))
 	else:
 		draw_mesh(meshes[mesh_key],null)

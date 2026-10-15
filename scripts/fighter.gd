@@ -3,6 +3,8 @@ extends CharacterBody2D
 const Rig = preload("res://scripts/rig.gd")
 var enemy := false
 var drake := false
+# Reversible rendering choice; does not change collision or animation bones.
+var hybrid_body := true
 var health := 100.0
 var facing := 1.0
 var climbing := false
@@ -228,6 +230,7 @@ func take_damage(amount: float,hit_color := Color("ff9b56")) -> void:
 		dropped_weapon = preload("res://scripts/dropped_weapon.gd").new()
 		dropped_weapon.world = world
 		dropped_weapon.drake = drake
+		dropped_weapon.hero = not enemy
 		dropped_weapon.position = position + Vector2(facing*35,-115)
 		dropped_weapon.velocity = Vector2(facing*110,-150)
 		dropped_weapon.scale.x = facing
