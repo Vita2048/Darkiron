@@ -43,6 +43,7 @@ var captured := false
 var ui: Node2D
 var bullet_glow: GradientTexture2D
 
+
 func _ready() -> void:
 	var window := get_window()
 	# Apply runtime settings as well as project defaults, including editor runs.
@@ -80,11 +81,9 @@ func _ready() -> void:
 	for spawn in [Vector2(825,720),Vector2(1900,480),Vector2(2520,480),Vector2(3240,720),Vector2(4690,720),Vector2(5580,480)]:
 		var enemy := Fighter.new()
 		enemy.enemy = true
-		# Split the squad into thirds: drake look, vector look, azure Darkiron look.
-		# Round-robin keeps each look spread across the level.
 		var slot := enemies.size() % 3
 		enemy.drake = slot == 0
-		enemy.azure = slot == 2
+		enemy.azure = (slot == 2) || (slot == 1)
 		enemy.world = self
 		enemy.position = spawn
 		add_child(enemy)
@@ -105,6 +104,7 @@ func _ready() -> void:
 	capture_mode = "--capture" in OS.get_cmdline_user_args()
 	get_viewport().size_changed.connect(_fit_canvas)
 	_fit_canvas()
+
 	if DisplayServer.get_name() != "headless" and not capture_mode and not "--script" in OS.get_cmdline_args():
 		window.set_deferred("mode",Window.MODE_MAXIMIZED)
 
@@ -120,6 +120,11 @@ func toggle_fullscreen() -> void:
 	window.mode = Window.MODE_MAXIMIZED if window.mode==Window.MODE_FULLSCREEN else Window.MODE_FULLSCREEN
 
 func _setup_input() -> void:
+	if not InputMap.has_action("interact"):
+		InputMap.add_action("interact")
+		var interact_key := InputEventKey.new()
+		interact_key.physical_keycode = KEY_E
+		InputMap.action_add_event("interact",interact_key)
 	var bindings := {"left":[KEY_LEFT],"right":[KEY_RIGHT],"up":[KEY_UP],"down":[KEY_DOWN],"toggle_weapon":[KEY_S],"jump":[KEY_SPACE],"shoot":[KEY_J,KEY_F],"grenade":[KEY_G],"run":[KEY_SHIFT],"restart":[KEY_R],"pause_game":[KEY_ESCAPE],"mute":[KEY_M],"continue_game":[KEY_ENTER]}
 	for action in bindings:
 		if not InputMap.has_action(action):
@@ -308,6 +313,7 @@ func respawn() -> void:
 	grenades.clear()
 	for enemy in enemies:
 		enemy.cooldown = 2.0
+		enemy.aim_charge = 0
 	camera_x = clampf(checkpoint.x-500,0,LEVEL_END-1440)
 	say("BACK IN THE FIGHT / Your progress is preserved.")
 

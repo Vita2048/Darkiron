@@ -246,7 +246,3 @@ func take_damage(amount: float,hit_color := Color("ff9b56")) -> void:
 		world.sound("fall")
 		if enemy:
 			world.kills += 1
-
-
-
-
