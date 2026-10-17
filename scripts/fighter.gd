@@ -1,6 +1,7 @@
 extends CharacterBody2D
 
 const Rig = preload("res://scripts/rig.gd")
+const HeroRig = preload("res://scripts/hero_rig.gd")
 var enemy := false
 var drake := false
 var azure := false
@@ -15,6 +16,14 @@ var in_cover := false
 var weapon_drawn := true
 var weapon_blend := 1.0
 var weapon_transition := 0.0
+var weapon_kind := "RIFLE"
+# Plasma bow state: aim tilt (positive looks toward the facing ground) and draw amount.
+var bow_angle := -0.08
+var bow_charge := 0.0
+# Debug-range style drag: hold left mouse to aim, drag left for power, release to fire.
+var mouse_charging := false
+var drag_start := Vector2.ZERO
+var drag_angle := 0.0
 var running := false
 var cooldown := 0.0
 var hurt_flash := 0.0
@@ -56,7 +65,7 @@ func _ready() -> void:
 	add_child(shape)
 	collision_layer = 2 if enemy else 4
 	collision_mask = 1
-	rig = Rig.new()
+	rig = HeroRig.new() if not enemy else Rig.new()
 	rig.fighter = self
 	rig.cover_pose = cover_pose
 	rig.skeleton_character = skeleton_character
@@ -109,6 +118,14 @@ func _update_player(dt: float) -> void:
 	if Input.is_action_just_pressed("toggle_weapon") and weapon_transition <= 0 and not climbing:
 		weapon_drawn = not weapon_drawn
 		weapon_transition = 0.28
+	if world.has_method("current_weapon"):
+		if Input.is_action_just_pressed("weapon_prev"):
+			world.select_weapon(-1)
+		elif Input.is_action_just_pressed("weapon_next"):
+			world.select_weapon(1)
+		elif world.weapon_selecting and Input.is_action_just_pressed("weapon_confirm"):
+			world.confirm_weapon()
+			return
 	var candidate: Vector3 = world.ladder_at(position)
 	var near_ladder := candidate != Vector3.ZERO
 	in_cover = Input.is_action_pressed("up") and is_on_floor() and not climbing and (weapon_drawn or not near_ladder)
@@ -147,13 +164,53 @@ func _update_player(dt: float) -> void:
 		world.sound("jump")
 	if Input.is_action_just_released("jump") and velocity.y < -220:
 		velocity.y = -220
-	if Input.is_action_pressed("shoot") and cooldown <= 0 and can_fire():
+	var bow_gun: bool = world.has_method("current_weapon") and world.current_weapon() == "BOW"
+	if bow_gun and weapon_drawn and weapon_transition <= 0 and not climbing and health > 0:
+		_update_mouse_bow()
+	else:
+		mouse_charging = false
+		bow_charge = 0
+	if bow_gun:
+		if Input.is_action_just_pressed("shoot_key") and cooldown <= 0 and can_fire():
+			bow_charge = 1.0
+			fire()
+			bow_charge = 0
+	elif Input.is_action_pressed("shoot") and cooldown <= 0 and can_fire():
 		fire()
 	if Input.is_action_just_pressed("grenade") and not climbing and not in_cover and weapon_transition <= 0:
 		world.throw_grenade(self)
 
+func _update_mouse_bow() -> void:
+	# Cover resets the drag like debug_drones; aim follows the mouse otherwise.
+	if in_cover or world.weapon_selecting:
+		mouse_charging = false
+		bow_charge = 0
+		return
+	var mouse := get_global_mouse_position()
+	var origin := position+Vector2(0,-126)
+	if mouse_charging:
+		bow_angle = clampf(drag_angle+(mouse.y-drag_start.y)*0.0035,-1.0,0.6)
+		bow_charge = clampf((drag_start.x-mouse.x)/220.0,0,1)
+	else:
+		bow_angle = clampf((mouse.y-origin.y)*0.0035,-1.0,0.6)
+		bow_charge = 0
+	var pressed := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	if pressed and not mouse_charging:
+		mouse_charging = true
+		drag_start = mouse
+		drag_angle = bow_angle
+	elif not pressed and mouse_charging:
+		mouse_charging = false
+		if cooldown <= 0 and can_fire():
+			fire()
+		bow_charge = 0
+
 func can_fire() -> bool:
-	return health > 0 and weapon_drawn and weapon_transition <= 0 and not climbing and not in_cover
+	if health <= 0 or not weapon_drawn or weapon_transition > 0 or climbing or in_cover:
+		return false
+	if world.has_method("current_weapon") and world.weapon_selecting:
+		return false
+	return true
 
 func _end_climb() -> void:
 	climbing = false
@@ -212,6 +269,10 @@ func muzzle() -> Vector2:
 
 func fire() -> void:
 	if not can_fire():
+		return
+	if not enemy and world.has_method("current_weapon") and world.current_weapon() == "BOW":
+		cooldown = 0.55
+		world.fire_arrow(self,bow_charge)
 		return
 	cooldown = 1.15 if enemy else 0.42
 	recoil = 1

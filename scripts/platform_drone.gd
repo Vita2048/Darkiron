@@ -1,0 +1,78 @@
+extends Node2D
+## Hunter drone from the debug gauntlet, adapted to patrol the Cinderworks yard.
+var world: Node2D
+var slot := 0
+var health := 75.0
+var age := 0.0
+var cooldown := 2.0
+var warning := 0.0
+var flash := 0.0
+const ENGINES := [Vector2(44,-6),Vector2(39,14)]
+var trails: Array = [[],[]]
+var sprite: Texture2D
+var glow: Texture2D
+
+func _ready() -> void:
+	z_index = 3
+	sprite = load("res://assets/ember-drone.png")
+	glow = preload("res://scripts/raptor_flame_texture.gd").glow_texture()
+	cooldown = 2.0+slot*1.15
+	position = Vector2(760+slot*120,470+slot*60)
+
+func advance(dt: float) -> void:
+	if health <= 0: return
+	age += dt
+	flash = maxf(0,flash-dt)
+	var phase := age*(0.8+slot*0.12)+slot*2.1
+	var desired := Vector2(900+sin(phase)*150,470+slot*62+sin(phase*1.7)*60)
+	position = position.lerp(desired,1-exp(-dt*(1.0 if warning > 0 else 3.0)))
+	rotation = sin(phase*1.7)*0.12
+	for i in 2:
+		trails[i].push_front(to_global(ENGINES[i]))
+		if trails[i].size() > 24: trails[i].pop_back()
+	if world.player.health > 0:
+		if warning > 0:
+			warning -= dt
+			if warning <= 0:
+				world.fire_drone(self)
+				cooldown = 3.6+slot*0.35
+		else:
+			cooldown -= dt
+			if cooldown <= 0: warning = 0.85
+	queue_redraw()
+
+func hit(amount: float) -> void:
+	if health <= 0: return
+	health = maxf(0,health-amount)
+	flash = 0.18
+	world.impact(position,Color(0,0.65,1) if amount >= 22.0 else Color(1,0.6,0.2))
+	if health <= 0:
+		visible = false
+		world.drone_destroyed(self)
+
+func hull_rect() -> Rect2:
+	return Rect2(position-Vector2(58,25),Vector2(116,50))
+
+func eye_rect() -> Rect2:
+	return Rect2(position+Vector2(-56,-10),Vector2(24,26))
+
+func _draw() -> void:
+	if health <= 0: return
+	for trail in trails:
+		for i in range(1,trail.size()):
+			var fade: float = 1.0-float(i)/trail.size()
+			draw_line(to_local(trail[i-1]),to_local(trail[i]),Color(0.15,0.65,1,fade*0.35),fade*5,true)
+	draw_texture_rect(sprite,Rect2(-62,-41,124,82),false,Color(1.6,1.8,2) if flash > 0 else Color.WHITE)
+	# Nozzle anchors are measured on the artwork; both rotate with the drone.
+	for i in 2:
+		var engine: Vector2 = ENGINES[i]
+		var length := 21+5*sin(age*33+i*2.0)
+		draw_texture_rect(glow,Rect2(engine-Vector2(10,10),Vector2(32,20)),false)
+		draw_colored_polygon(PackedVector2Array([engine+Vector2(0,-3),engine+Vector2(length*0.65,-2),engine+Vector2(length,0),engine+Vector2(length*0.65,2),engine+Vector2(0,3)]),Color(0.2,0.65,1,0.55))
+		draw_line(engine,engine+Vector2(length*0.75,0),Color("a4f1ff"),2,true)
+	if warning > 0:
+		var strength := 1.0-warning/0.85
+		draw_arc(Vector2(-46,3),15+strength*8,0,TAU,40,Color(1,0.3,0.1,0.5+strength*0.5),2,true)
+		draw_circle(Vector2(-46,3),3+strength*4,Color("ffcf94"))
+	draw_rect(Rect2(-30,-45,60,3),Color("2d3948"))
+	draw_rect(Rect2(-30,-45,60*health/75.0,3),Color("eea169"))

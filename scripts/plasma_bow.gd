@@ -6,6 +6,8 @@ var hands: Node2D
 var atlas: Texture2D
 var limb_mesh: ArrayMesh
 var mesh_charge := -1.0
+# 1.0 keeps the debug-range size; the game hero carries a 25% smaller bow.
+@export_range(0.1, 2.0) var visual_scale: float = 1.0
 const ORIGIN := Vector2(0,-126)
 
 func aim_angle() -> float:
@@ -57,7 +59,10 @@ func _ready() -> void:
 	add_child(hands)
 
 func _process(_dt: float) -> void:
-	visible = fighter.health > 0
+	# Debug ranges keep the bow permanent; the game hero only shows his drawn bow.
+	visible = fighter.health > 0 and not fighter.climbing
+	if get_parent().has_method("armed_with_bow"):
+		visible = visible and get_parent().armed_with_bow()
 	queue_redraw()
 	hands.queue_redraw()
 
@@ -91,27 +96,31 @@ func rebuild_limb() -> void:
 	limb_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
 
 func _draw() -> void:
-	draw_set_transform(grip(),aim_angle())
+	draw_set_transform(grip(),aim_angle(),Vector2.ONE*visual_scale)
 	rebuild_limb()
 	for side in [1.0,-1.0]:
-		draw_set_transform(grip(),aim_angle(),Vector2(1,side))
+		draw_set_transform(grip(),aim_angle(),Vector2(visual_scale,side*visual_scale))
 		draw_mesh(limb_mesh,atlas)
-	draw_set_transform(grip(),aim_angle())
+	draw_set_transform(grip(),aim_angle(),Vector2.ONE*visual_scale)
 	draw_texture_rect_region(atlas,Rect2(-12.6,-24.5,22.4,49),Rect2(825,260,225,850))
-	var pull := (nock()-grip()).rotated(-aim_angle())
+	# Scale the raster limbs and riser, preserving the authored hand/arrow pose.
+	var pull := (nock()-grip()).rotated(-aim_angle()) / visual_scale
 	var string := PackedVector2Array([limb_point(1,-1),pull,limb_point(1,1)])
 	draw_polyline(string,Color(0.1,0.65,1,0.13),4,true)
 	draw_polyline(string,Color("a3eaff"),1,true)
 	if fighter.in_cover:
 		draw_set_transform(Vector2.ZERO)
 		return
+	draw_set_transform(grip(),aim_angle())
+	pull = (nock()-grip()).rotated(-aim_angle())
 	# Nocked arrow runs directly through the drawing fingers, above the torso.
 	var tip := pull+Vector2(110,0)
 	draw_line(pull,tip-Vector2(12,0),Color("7c9eaf"),2,true)
 	draw_line(pull,tip-Vector2(12,0),Color("d4e8f1"),0.6,true)
 	preload("res://scripts/arrow_feathers.gd").draw_feathers(self,pull)
-	if fighter.world != null and fighter.world.glow:
-		draw_texture_rect(fighter.world.glow,Rect2(tip-Vector2(27,24),Vector2(48,48)),false)
+	var world_glow: Texture2D = fighter.world.get("glow") if fighter.world != null else null
+	if world_glow:
+		draw_texture_rect(world_glow,Rect2(tip-Vector2(27,24),Vector2(48,48)),false)
 	draw_colored_polygon(PackedVector2Array([tip+Vector2(3,0),tip+Vector2(-14,-5),tip+Vector2(-10,0),tip+Vector2(-14,5)]),Color("85eaff"))
 	draw_line(tip-Vector2(11,0),tip+Vector2(2,0),Color.WHITE,1.5,true)
 	draw_set_transform(Vector2.ZERO)

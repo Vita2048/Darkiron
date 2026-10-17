@@ -1,7 +1,6 @@
 extends "res://scripts/fighter.gd"
 ## Stationary range actor; deliberately bypasses combat AI and gun damage/death drops.
-var bow_angle := 0.0
-var bow_charge := 0.0
+## bow_angle / bow_charge are inherited from fighter.gd; this range still aims its bow.
 
 func _ready() -> void:
 	super._ready()
