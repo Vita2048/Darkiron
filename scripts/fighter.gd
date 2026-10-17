@@ -26,6 +26,8 @@ var coyote := 0.0
 var jump_buffer := 0.0
 var world: Node2D
 var rig: Node2D
+var cover_pose: Node2D
+var skeleton_character: Node2D
 var patrol_origin := 0.0
 var ai_clock := 0.0
 var alert_time := 0.0
@@ -56,6 +58,8 @@ func _ready() -> void:
 	collision_mask = 1
 	rig = Rig.new()
 	rig.fighter = self
+	rig.cover_pose = cover_pose
+	rig.skeleton_character = skeleton_character
 	add_child(rig)
 	patrol_origin = position.x
 	if enemy:

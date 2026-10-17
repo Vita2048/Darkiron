@@ -74,6 +74,7 @@ func _ready() -> void:
 		_make_solid(rect)
 	player = FighterScript.new()
 	player.world = self
+	player.skeleton_character = $Darkiron
 	player.position = START_POS
 	# Explicit: debug root is PROCESS_MODE_ALWAYS (so keys/labels work while
 	# paused), but INHERIT would leak ALWAYS onto the player and its rig,

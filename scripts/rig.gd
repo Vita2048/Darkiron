@@ -1,4 +1,59 @@
+@tool
 extends Node2D
+
+var editor_preview := false
+var cover_pose: Node2D
+var cover_player: AnimationPlayer
+
+# Native authored scene: no procedural bone writes while editing.
+const SkeletonCharacter = preload("res://characters/darkiron.tscn")
+var skeleton_character: Node2D
+var skeleton_animation: AnimationPlayer
+var skeleton_active := false
+var cover_time := 0.0
+
+func _ready() -> void:
+	if editor_preview or Engine.is_editor_hint():
+		return
+	if not fighter.enemy and not fighter.drake and not fighter.azure:
+		if skeleton_character == null:
+			skeleton_character = SkeletonCharacter.instantiate()
+			add_child(skeleton_character)
+		else:
+			skeleton_character.reparent(self, false)
+		skeleton_character.position = Vector2.ZERO
+		skeleton_character.process_mode = Node.PROCESS_MODE_INHERIT
+		skeleton_animation = skeleton_character.get_node("AnimationPlayer")
+		skeleton_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		skeleton_character.hide()
+
+func _update_skeleton(dt: float) -> void:
+	if skeleton_character == null:
+		return
+	var eligible: bool = fighter.health > 0 and fighter.is_on_floor() and not fighter.climbing and not fighter.crouching and fighter.weapon_blend >= 0.999 and fighter.recoil <= 0.01 and absf(fighter.velocity.x) < 12
+	if not eligible:
+		skeleton_active = false
+		skeleton_character.hide()
+		cover_time = 0.0
+		return
+	if not skeleton_active:
+		cover_time = 0.0
+		skeleton_animation.play("cover")
+		skeleton_animation.advance(0)
+		skeleton_active = true
+	# One shared timeline: 0=standing, 0.1=cover, 0.2=standing (matches original speed).
+	# Hold the cover key while Up is held; resume the exit half on release.
+	if fighter.in_cover:
+		if cover_time > 0.1:
+			cover_time = 0.2 - cover_time
+		cover_time = minf(0.1, cover_time + dt)
+	else:
+		if cover_time > 0.0 and cover_time < 0.1:
+			cover_time = 0.2 - cover_time
+		if cover_time >= 0.1:
+			cover_time = minf(0.2, cover_time + dt)
+	skeleton_animation.seek(cover_time, true)
+	skeleton_character.show()
 
 var fighter: CharacterBody2D
 const Armor = preload("res://scripts/vector_armor.gd")
@@ -12,9 +67,14 @@ var stand_weight := 1.0
 var move_weight := 0.0
 
 func _process(dt: float) -> void:
+	if editor_preview or Engine.is_editor_hint():
+		if is_instance_valid(fighter):
+			queue_redraw()
+		return
 	visible = fighter.position.x > fighter.world.camera_x-180 and fighter.position.x < fighter.world.camera_x+1620
 	if not visible or fighter.world.paused:
 		return
+	_update_skeleton(dt)
 	clock += dt
 	run_weight = move_toward(run_weight, 1.0 if fighter.running and fighter.is_on_floor() and fighter.health > 0 else 0.0, dt * 7)
 	cover_weight = move_toward(cover_weight, 1.0 if fighter.in_cover else 0.0, dt * 9)
@@ -240,6 +300,14 @@ func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 		part(14 if far else 13,hand,Vector2(10,12) if far else Vector2(12,13),wrist_angle-0.10,tint)
 
 func _draw() -> void:
+	if not is_instance_valid(fighter):
+		return
+	if skeleton_active:
+		for node in parts:
+			node.visible = false
+		scale = Vector2(fighter.facing, 1)
+		modulate = Color.WHITE
+		return
 	part_cursor = 0
 	scale.x = fighter.facing * lerpf(1.0,0.83,cover_weight)
 	scale.y = lerpf(1.0,0.96,cover_weight)
@@ -273,6 +341,11 @@ func _draw() -> void:
 		hip.x = -9
 		front = Vector2(14,-3)
 		back = Vector2(-17,-3)
+	var authored_cover: bool = editor_preview and is_instance_valid(cover_pose) and fighter.in_cover and not fighter.enemy and not fighter.climbing
+	if authored_cover:
+		hip = cover_pose.get_node("Hip").position
+		front = cover_pose.get_node("FrontFoot").position
+		back = cover_pose.get_node("BackFoot").position
 	if fighter.health <= 0:
 		rotation = -fighter.facing * minf(fighter.dead_time * 4, PI/2)
 		position.y = -12
@@ -282,6 +355,9 @@ func _draw() -> void:
 	# Breathing moves the chest only; planted legs do not repeatedly buckle.
 	torso.y += sin(clock*2.8)*0.7*stand_weight
 	var lean := 0.17*run_weight - 0.11*cover_weight
+	if authored_cover:
+		torso = hip + cover_pose.get_node("Torso").position
+		lean = cover_pose.get_node("Torso").rotation
 	var equipped: float = fighter.weapon_blend
 	var holstered: float = 1.0-equipped
 	if fighter.climbing:
@@ -332,6 +408,8 @@ func _draw() -> void:
 		var head_top := -29.0 if (not fighter.enemy or fighter.azure) else -34.0
 		part(0,torso+Vector2(4+run_weight*6,head_top),head_size,lean-0.04)
 	var shoulder := torso+Vector2(-9,9)
+	if authored_cover:
+		shoulder = torso + cover_pose.get_node("Torso/RightShoulder").position
 	var elbow := torso+Vector2(12,33)
 	var hand := torso+Vector2(36,24)
 	if fighter.climbing:
@@ -347,16 +425,20 @@ func _draw() -> void:
 		hand = torso+Vector2(3,24)
 		var hybrid: bool = fighter.drake or fighter.azure or not fighter.enemy
 		var cover_gun := torso+Vector2(0 if hybrid else 18,7)
+		var cover_angle := -1.4
+		if authored_cover:
+			cover_gun = torso + cover_pose.get_node("Torso/Weapon").position
+			cover_angle = cover_pose.get_node("Torso/Weapon").rotation
 		if hybrid:
-			hand = cover_gun+(Vector2(-24,79)*Vector2(0.94,0.27)).rotated(-1.4)
+			hand = cover_gun+(Vector2(-24,79)*Vector2(0.94,0.27)).rotated(cover_angle)
 		if not fighter.enemy or fighter.azure:
 			elbow = weapon_elbow(shoulder,hand)
 		if equipped > 0:
-			part(2,cover_gun,Vector2(94,27),-1.4,Color(1,1,1,equipped))
+			part(2,cover_gun,Vector2(94,27),cover_angle,Color(1,1,1,equipped))
 		segment(3,shoulder,elbow,31)
 		segment(4,elbow,hand,19,Color.WHITE,false)
 		if hybrid and equipped>0:
-			part(9,cover_gun,Vector2(94,27),-1.4,Color(1,1,1,equipped))
+			part(9,cover_gun,Vector2(94,27),cover_angle,Color(1,1,1,equipped))
 	elif equipped < 0.5:
 		free_arm(shoulder,cycle,Color.WHITE)
 	else:

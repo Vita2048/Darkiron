@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 ## Retained vector meshes and textured modules; animation updates transforms.
 const Armor = preload("res://scripts/vector_armor.gd")
@@ -59,6 +60,8 @@ func configure(value: int,variant := false,hero_variant := false,body_variant :=
 			meshes[mesh_key] = baker.build()
 		queue_redraw()
 func _draw() -> void:
+	if index < 0:
+		return
 	if drake and DrakeSvg.supports(index):
 		DrakeSvg.draw(self,index)
 	elif azure and SvgBody.supports(index):

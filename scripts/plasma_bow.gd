@@ -120,12 +120,3 @@ func _draw_hands() -> void:
 			hands.draw_line(Vector2(-4,y+1),Vector2(2,y+2),Color("1b2939"),1,true)
 		hands.draw_line(Vector2(-8,-3),Vector2(-2,3),Color("c1905d"),2,true)
 		hands.draw_set_transform(Vector2.ZERO)
-
-
-
-
-
-
-
-
-

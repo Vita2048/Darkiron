@@ -34,8 +34,3 @@ func _draw() -> void:
 	segment(4,elbow,wrist,19,Color.WHITE,false)
 	for i in range(first,part_cursor): parts[i].z_index = 70
 	drawing_bow_arms = false
-
-
-
-
-
