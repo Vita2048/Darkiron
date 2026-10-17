@@ -428,16 +428,25 @@ func _update_arrows(dt: float) -> void:
 		var critical := false
 		for drone in drones:
 			if drone.health <= 0: continue
-			var hull := segment_entry(previous,arrow.p,drone.hull_rect())
-			var eye := segment_entry(previous,arrow.p,drone.eye_rect())
+			# Test in artwork space so the sensor turns with the drone.
+			var from: Vector2 = drone.to_local(previous)
+			var to: Vector2 = drone.to_local(arrow.p)
+			var hull := segment_entry(from,to,drone.HULL)
+			var eye := segment_entry(from,to,drone.EYE)
 			if hull < nearest:
 				nearest = hull
 				victim = drone
 				critical = eye != INF
 		if victim:
 			arrow.p = previous.lerp(arrow.p,nearest)
-			victim.hit(25.0 if critical else 18.75)
-			impact(arrow.p,Color("ff9a56") if not critical else Color(0,0.75,1))
+			victim.hit(25.0 if critical else 18.75,arrow.v)
+			var effect := preload("res://scripts/drone_arrow_impact.gd").new()
+			effect.world = self
+			effect.position = arrow.p
+			effect.incoming = arrow.v.normalized()
+			effect.critical = critical
+			add_child(effect)
+			shake = maxf(shake,3.5 if critical else 1.8)
 			arrow.life = 0
 			arrow.v = Vector2(0,1)
 			say("SENSOR HIT / -33%" if critical else "ARMOR HIT / -25%")
@@ -521,9 +530,10 @@ func _update_drone_bolts(dt: float) -> void:
 		if ember.life <= 0: drone_embers.remove_at(i)
 
 func fire_drone(drone: Node2D) -> void:
-	var muzzle: Vector2 = drone.position+Vector2(-58,13).rotated(drone.rotation)
-	var travel := maxf(0.25,(muzzle.x-player.position.x)/480.0)
-	var velocity := Vector2(-480,(player.position.y-110-muzzle.y-0.5*DRONE_BOLT_GRAVITY*travel*travel)/travel)
+	var muzzle: Vector2 = drone.to_global(Vector2(-58,13))
+	var target := player.position+Vector2(0,-110)
+	var travel := maxf(0.35,absf(target.x-muzzle.x)/480.0)
+	var velocity := (target-muzzle-Vector2(0,0.5*DRONE_BOLT_GRAVITY*travel*travel))/travel
 	drone_bolts.append({"p":muzzle,"v":velocity,"life":5.0})
 	burst(muzzle,Color("ff9e56"),6)
 	sound("enemy")

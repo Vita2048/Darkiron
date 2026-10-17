@@ -7,6 +7,13 @@ var age := 0.0
 var cooldown := 2.0
 var warning := 0.0
 var flash := 0.0
+var facing := 1.0 # Artwork faces left at positive scale.
+var knockback := Vector2.ZERO
+const HULL := Rect2(-58,-25,116,50)
+const EYE := Rect2(-56,-10,24,26)
+const YARD_LEFT := 80.0
+const YARD_RIGHT := 1080.0 # Hull stays clear of the upper platform at x=1150.
+var patrol_side := 1.0
 const ENGINES := [Vector2(44,-6),Vector2(39,14)]
 var trails: Array = [[],[]]
 var sprite: Texture2D
@@ -24,13 +31,43 @@ func advance(dt: float) -> void:
 	age += dt
 	flash = maxf(0,flash-dt)
 	var phase := age*(0.8+slot*0.12)+slot*2.1
-	var desired := Vector2(900+sin(phase)*150,470+slot*62+sin(phase*1.7)*60)
-	position = position.lerp(desired,1-exp(-dt*(1.0 if warning > 0 else 3.0)))
+	var target: Vector2 = world.player.position
+	# Swap banks after the player crosses the abyss, rather than chasing them.
+	# Retain the last side while they are above the gap (410..525).
+	if target.x >= 525: patrol_side = -1.0
+	elif target.x <= 410: patrol_side = 1.0
+	var desired := Vector2(target.x+patrol_side*(600+slot*35)+sin(phase)*35,470+slot*62+sin(phase*1.7)*45)
+	var left := YARD_LEFT+slot*25
+	var right := YARD_RIGHT-slot*25
+	var engaging: bool = target.x < 1150 and world.player.health > 0
+	if engaging:
+		# Leave room for the entire hull and anticipate the camera catching up.
+		# The game camera shows 1440 world units, following 500 behind the player.
+		var camera_left: float = maxf(world.camera_x,maxf(0,target.x-500))
+		left = maxf(left,minf(YARD_RIGHT-160,camera_left+110+slot*55))
+		right = minf(right,world.camera_x+1440-110-slot*55)
+	var preferred_x := desired.x
+	desired.x = clampf(desired.x,left,maxf(left,right))
+	# Trade unavailable horizontal distance for altitude, keeping the volley visible.
+	desired.y -= minf(160,absf(desired.x-preferred_x)*.6)
+	desired.y = clampf(desired.y,240,640)
+	# Retreat remains responsive during wind-up; never slow into the player.
+	position = position.move_toward(desired,dt*520.0)
+	position += knockback*dt
+	position.x = clampf(position.x,YARD_LEFT,YARD_RIGHT)
+	if engaging:
+		position.x = clampf(position.x,minf(YARD_RIGHT,world.camera_x+85),minf(YARD_RIGHT,world.camera_x+1440-85))
+	position.y = clampf(position.y,240,640)
+	knockback = knockback.move_toward(Vector2.ZERO,dt*600)
+	# Small dead zone prevents flickering when the player passes directly below.
+	if absf(target.x-position.x) > 20:
+		facing = 1.0 if target.x < position.x else -1.0
+	scale.x = facing
 	rotation = sin(phase*1.7)*0.12
 	for i in 2:
 		trails[i].push_front(to_global(ENGINES[i]))
 		if trails[i].size() > 24: trails[i].pop_back()
-	if world.player.health > 0:
+	if engaging:
 		if warning > 0:
 			warning -= dt
 			if warning <= 0:
@@ -39,22 +76,25 @@ func advance(dt: float) -> void:
 		else:
 			cooldown -= dt
 			if cooldown <= 0: warning = 0.85
+	else:
+		warning = 0
+		cooldown = maxf(cooldown,1.0)
 	queue_redraw()
 
-func hit(amount: float) -> void:
+func hit(amount: float, incoming := Vector2.ZERO) -> void:
 	if health <= 0: return
 	health = maxf(0,health-amount)
 	flash = 0.18
-	world.impact(position,Color(0,0.65,1) if amount >= 22.0 else Color(1,0.6,0.2))
+	knockback = incoming.normalized()*150
 	if health <= 0:
 		visible = false
 		world.drone_destroyed(self)
 
 func hull_rect() -> Rect2:
-	return Rect2(position-Vector2(58,25),Vector2(116,50))
+	return global_transform * HULL
 
 func eye_rect() -> Rect2:
-	return Rect2(position+Vector2(-56,-10),Vector2(24,26))
+	return global_transform * EYE
 
 func _draw() -> void:
 	if health <= 0: return
