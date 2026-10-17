@@ -21,8 +21,8 @@ func run() -> void:
 	rig.set_process(false)
 	var player: AnimationPlayer = rig.skeleton_animation
 	var head: Bone2D = rig.skeleton_character.find_child("Head", true, false)
-	for state in ["idle", "walk", "run", "crouch", "cover", "climb", "air"]:
-		actor.climbing = state == "climb"
+	for state in ["idle", "walk", "run", "crouch", "cover", "air"]:
+		actor.climbing = false
 		actor.weapon_blend = 0.0 if actor.climbing else 1.0
 		actor.in_cover = state == "cover"
 		actor.crouching = state == "crouch"

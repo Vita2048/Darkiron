@@ -23,9 +23,16 @@ func _update_run_edits() -> void:
 	if run_edit_player == null: return
 	if fighter.health > 0 and _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover:
 		run_edit_weight = run_weight * move_weight * (1.0 - fighter.weapon_blend)
-	if run_edit_weight > 0.0:
-		var clip := run_edit_player.get_animation("run_sheathed")
-		run_edit_player.seek(_gait_phase() * clip.length, true)
+		if run_edit_weight > 0.0 and run_edit_player.has_animation("run_sheathed"):
+			var clip := run_edit_player.get_animation("run_sheathed")
+			run_edit_player.seek(_gait_phase() * clip.length, true)
+	elif fighter.health > 0 and fighter.climbing:
+		run_edit_weight = 1.0 - fighter.weapon_blend
+		if run_edit_weight > 0.0:
+			var anim_name := "climb_sheathed" if run_edit_player.has_animation("climb_sheathed") else "climb"
+			if run_edit_player.has_animation(anim_name):
+				var clip := run_edit_player.get_animation(anim_name)
+				run_edit_player.seek(_gait_phase() * clip.length, true)
 
 var cover_pose: Node2D
 var cover_player: AnimationPlayer
@@ -124,7 +131,7 @@ func _update_skeleton(dt: float) -> void:
 		skeleton_character.hide()
 		skel_clip = ""
 		return
-	if fighter.health <= 0 or (fighter.weapon_blend < 0.999 and not fighter.climbing):
+	if fighter.health <= 0 or fighter.weapon_blend < 0.999 or fighter.climbing:
 		skeleton_active = false
 		skeleton_character.hide()
 		skel_clip = ""
@@ -270,9 +277,13 @@ func grounded_leg(hip: Vector2,foot: Vector2,front_leg: bool,tint: Color) -> voi
 	var root := hip.lerp(base+standing[0],stand_weight)
 	var k := knee(hip,foot,1).lerp(base+standing[1],stand_weight)
 	var ankle := foot.lerp(base+standing[2],stand_weight)
+	if run_edit_weight > 0.0:
+		ankle += _run_vector("front_foot_offset" if front_leg else "back_foot_offset")
+		k = knee(root, ankle, 1)
 	segment(6,root,k,38 if front_leg else 33,tint)
 	segment(7,k,ankle,31 if front_leg else 27,tint)
-	part(8,ankle+(Vector2(5,-8) if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)),Vector2(34,19),0,tint)
+	var toe := _run_angle("front_foot_pitch_degrees" if front_leg else "back_foot_pitch_degrees")
+	part(8,ankle+(Vector2(5,-8) if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body) else Vector2(8,-9)).rotated(toe),Vector2(34,19),toe,tint)
 
 # Contact, weight-bearing, push-off, heel recovery, knee drive, extension.
 # Explicit joint poses keep the rear knee folded instead of bicycling both feet.
@@ -533,12 +544,21 @@ func _draw() -> void:
 	var elbow := torso+Vector2(12,33)
 	var hand := torso+Vector2(36,24)
 	if fighter.climbing:
-		segment(3,torso+Vector2(8,9),torso+Vector2(18,-8),24,dark)
-		segment(4,torso+Vector2(18,-8),torso+Vector2(18,-33-sin(cycle)*16),18,dark)
-		elbow = torso + Vector2(9,-8)
-		hand = torso + Vector2(15,-33 + sin(cycle)*16)
-		segment(3,shoulder,elbow,24)
-		segment(4,elbow,hand,18)
+		var far_shoulder := torso + Vector2(8, 9)
+		var far_elbow := torso + Vector2(18, -8)
+		var far_hand := torso + Vector2(18, -33 - sin(cycle) * 16)
+		segment(3, far_shoulder, far_elbow, 24, dark)
+		segment(4, far_elbow, far_hand, 18, dark, false)
+		if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body):
+			var far_wrist_angle := (far_hand - far_elbow).angle() - PI / 2
+			part(14, far_hand, Vector2(10, 12), far_wrist_angle - 0.10, dark)
+		elbow = torso + Vector2(9, -8)
+		hand = torso + Vector2(15, -33 + sin(cycle) * 16)
+		segment(3, shoulder, elbow, 24)
+		segment(4, elbow, hand, 18, Color.WHITE, false)
+		if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body):
+			var wrist_angle := (hand - elbow).angle() - PI / 2
+			part(13, hand, Vector2(12, 13), wrist_angle - 0.10, Color.WHITE)
 	elif fighter.in_cover:
 		# Keep the hand anchored to the actual pistol grip while the rifle rotates upright.
 		elbow = torso+Vector2(-17,36)
