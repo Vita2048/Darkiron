@@ -15,3 +15,7 @@ var running := false
 var recoil := 0.0
 var gait := 0.0
 var dead_time := 0.0
+
+var bow_angle := 0.0
+var bow_charge := 0.0
+var world = null

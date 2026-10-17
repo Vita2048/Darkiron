@@ -1,7 +1,7 @@
 @tool
 extends Node2D
 ## Actual game renderer, driven by the same pose anchors the timeline edits.
-const PreviewActor = preload("res://scripts/cover_preview_actor.gd")
+const PreviewActor = preload("res://scripts/animation_tweaker_actor.gd")
 const Rig = preload("res://scripts/rig.gd")
 @export var preview_face_left := false:
 	set(value):

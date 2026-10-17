@@ -117,6 +117,8 @@ func origin() -> Vector2:
 	return player.position + Vector2(0,-126)
 
 func shoot() -> void:
+	# Input can release between render frames; sample the final draw amount now.
+	player.rig._update_run_edits()
 	var direction := Vector2.from_angle(player.bow_angle)
 	arrows.append({"p": player.position+player.rig.bow.nock()+direction*110, "v": direction*lerpf(640,2080,charge), "life": 5.0, "stuck": false})
 	shot_count += 1

@@ -25,9 +25,10 @@ func run() -> void:
 	old.fighter = preview.actor
 	root.add_child(old)
 	old.set_process(false)
-	check(player.get_animation_list().size() == 15, "Exactly 15 supported clips")
+	check(player.get_animation_list().size() == 17, "Exactly 17 supported clips")
 	check(not player.has_animation("climb_drawn"), "No drawn climb")
 	for clip_name in player.get_animation_list():
+		if clip_name.begins_with("bow_"): continue
 		player.play(clip_name)
 		var clip := player.get_animation(clip_name)
 		var matches := true

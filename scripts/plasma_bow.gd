@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 ## Layered, deformable recurve bow. Geometry is shared with the rig's wrist anchors.
 var fighter: CharacterBody2D
@@ -8,20 +9,35 @@ var mesh_charge := -1.0
 const ORIGIN := Vector2(0,-126)
 
 func aim_angle() -> float:
-	return 0.12 if fighter.in_cover else fighter.bow_angle
+	return 0.12 + get_parent()._run_angle("bow_cover_angle_degrees") + get_parent().bow_body_transform().get_rotation() if fighter.in_cover else fighter.bow_angle
+
+func left_shoulder() -> Vector2:
+	return get_parent().bow_body_transform() * (Vector2(8,-126) + get_parent()._run_vector("bow_left_shoulder_offset")) + get_parent().arm_offset("LeftShoulder")
+
+func right_shoulder() -> Vector2:
+	return get_parent().bow_body_transform() * (Vector2(-11,-126) + get_parent()._run_vector("bow_right_shoulder_offset")) + get_parent().arm_offset("RightShoulder")
+
+func left_elbow() -> Vector2:
+	var wrist := grip() + Vector2(-6,2).rotated(aim_angle())
+	return get_parent().weapon_elbow(left_shoulder(), wrist) + get_parent().arm_offset("LeftForearm")
+
+func right_elbow() -> Vector2:
+	if fighter.in_cover:
+		return get_parent().weapon_elbow(right_shoulder(), right_hand()) + get_parent().arm_offset("RightForearm")
+	return draw_elbow()
 
 func right_hand() -> Vector2:
 	return grip()+Vector2(-2,16) if fighter.in_cover else nock()
 
 func grip() -> Vector2:
-	if fighter.in_cover: return Vector2(15,-103)
+	if fighter.in_cover: return get_parent().bow_body_transform() * (Vector2(15,-103) + get_parent()._run_vector("bow_grip_offset"))
 	# Aim is led by the left hand sweeping around its shoulder.
-	return Vector2(8,-126) + Vector2.from_angle(aim_angle())*65
+	return left_shoulder() + Vector2.from_angle(aim_angle())*65 + get_parent()._run_vector("bow_grip_offset")
 
 func draw_elbow() -> Vector2:
 	# Anatomical draw: upper arm rotates backwards continuously as energy rises.
-	var angle: float = lerpf(0.85,3.05,fighter.bow_charge)+aim_angle()
-	return Vector2(-11,-126)+Vector2.from_angle(angle)*33
+	var angle: float = lerpf(0.85,3.05,fighter.bow_charge)+aim_angle()+get_parent()._run_angle("bow_draw_elbow_degrees")
+	return right_shoulder()+Vector2.from_angle(angle)*33 + get_parent().arm_offset("RightForearm")
 
 func nock() -> Vector2:
 	if fighter.in_cover: return grip()-Vector2.from_angle(aim_angle())*25
@@ -94,7 +110,7 @@ func _draw() -> void:
 	draw_line(pull,tip-Vector2(12,0),Color("7c9eaf"),2,true)
 	draw_line(pull,tip-Vector2(12,0),Color("d4e8f1"),0.6,true)
 	preload("res://scripts/arrow_feathers.gd").draw_feathers(self,pull)
-	if fighter.world.glow:
+	if fighter.world != null and fighter.world.glow:
 		draw_texture_rect(fighter.world.glow,Rect2(tip-Vector2(27,24),Vector2(48,48)),false)
 	draw_colored_polygon(PackedVector2Array([tip+Vector2(3,0),tip+Vector2(-14,-5),tip+Vector2(-10,0),tip+Vector2(-14,5)]),Color("85eaff"))
 	draw_line(tip-Vector2(11,0),tip+Vector2(2,0),Color.WHITE,1.5,true)

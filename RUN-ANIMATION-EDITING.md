@@ -46,3 +46,27 @@ Edits affect the Darkiron hero. Enemy, Drake, and Azure rigs do not load the twe
 - `tests/controls.gd`: checks actual gameplay inputs and ladder/cover restrictions.
 
 Run with Godot's `--headless --path . --script tests/<test>.gd`; use an absolute writable `--log-file` path if the default user log directory is unavailable.
+
+## Bow cover and mouse-driven drawing
+
+`bow_cover` ports the bow cover pose used by `debug_drones.tscn`. `bow_draw` exposes the existing mouse-driven draw as a parameterized clip: timeline phase 0 means no pull, phase 1 means full pull. It is not a timed firing sequence. Releasing still fires immediately through the original gameplay code.
+
+Select either clip in **Controls > AnimationPlayer**. For `bow_draw`, scrub to set draw strength and change the root's **Bow Aim Degrees** to inspect different aim directions. F6 uses **Playback Clip** as before. The preview angle is a testing control; gameplay continues to use the mouse. The supported aim range matches the prototype (-57.3 to +34.4 degrees).
+
+Use the usual Hip, Torso, Head and leg bone tracks for body changes. For direct arm corrections, select **LeftShoulder**, **RightShoulder**, **LeftForearm**, or **RightForearm** under **Controls > Skeleton2D** and use the **Move** gizmo. Key **Position** in `bow_cover` or `bow_draw`. Shoulder positions move the arm root; forearm positions move the elbow. The wrists stay connected to the bow grip/string. These are position handles: rotation and scale are not bow-arm posing controls. The original neutral rotation/scale keys prevent transforms from other clips leaking into the handles.
+
+The following **Controls > Bow joint solver** properties also remain available:
+
+| Control | Effect |
+|---|---|
+| `bow_grip_offset` | Moves the bow grip and attached hand; the opposite arm and string are solved to meet it. |
+| `bow_left_shoulder_offset` | Adjusts the bow-supporting shoulder. |
+| `bow_right_shoulder_offset` | Adjusts the drawing shoulder. |
+| `bow_draw_elbow_degrees` | Adjusts the draw-arm bend during `bow_draw`; the string hand stays on the arrow line. |
+| `bow_cover_angle_degrees` | Tilts the stowed bow during `bow_cover`; shooting aim remains mouse-controlled. |
+
+The four native arm Position tracks are applied before drawing the connected arm segments. Their editor handles align with the rendered shoulders and elbows. Hand and Weapon bone transforms remain solver-controlled; use `bow_grip_offset` to move the bow and attached wrist. Start with small offsets and inspect several aim angles and pull amounts; extreme offsets can exceed the fixed-length arm solver's reach. Body Hip/Torso adjustments carry the bow shoulders as well. All new bow values default to zero, preserving the prototype's original motion.
+
+Save and restart `debug_drones.tscn` or `debug_bow.tscn` to apply the edits. The gun-only `main.tscn` does not select bow clips. No input bindings, charge speed, projectile speed, or mouse aim rules were changed.
+
+`tests/bow_animation_edits.gd` verifies original-pose parity, saved edits in the actual drone encounter, preview/game agreement, mouse-driven phase and aim, and shot direction. The preview now uses `scripts/animation_tweaker_preview.gd` and `scripts/animation_tweaker_actor.gd`.

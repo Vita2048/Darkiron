@@ -16,3 +16,9 @@ extends Node2D
 @export var back_elbow_bend_degrees := 0.0
 @export var weapon_offset := Vector2.ZERO
 @export var weapon_tilt_degrees := 0.0
+@export_group("Bow joint solver")
+@export var bow_grip_offset := Vector2.ZERO
+@export var bow_left_shoulder_offset := Vector2.ZERO
+@export var bow_right_shoulder_offset := Vector2.ZERO
+@export var bow_draw_elbow_degrees := 0.0
+@export var bow_cover_angle_degrees := 0.0
