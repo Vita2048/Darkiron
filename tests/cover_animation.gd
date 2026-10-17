@@ -56,16 +56,16 @@ func run() -> void:
 	var rig = actor.rig
 	actor.in_cover = true
 	rig._process(0.5)
-	check(rig.skeleton_active and is_equal_approx(rig.cover_time,0.1),"Skeleton holds the authored cover clip")
+	check(rig.run_edit_player.assigned_animation == "cover_drawn", "Cover uses the tweaker clip")
 	actor.in_cover = false
 	rig._process(0.5)
-	check(is_equal_approx(rig.cover_time,0.2),"Cover clip completes its authored exit")
+	check(rig.run_edit_player.assigned_animation == "idle_drawn", "Leaving cover selects idle edits")
 	actor.velocity.x = 210
 	rig._process(0.1)
-	check(rig.skeleton_active and rig.skeleton_character.visible and rig.skel_clip == "walk","Skeleton drives walking locomotion")
+	check(rig.run_edit_player.assigned_animation == "walk_drawn", "Tweaker drives walking edits")
 	actor.velocity.x = 0
 	rig._process(0.1)
-	check(rig.skeleton_active and rig.skel_clip == "idle","Skeleton drives idle locomotion")
+	check(rig.run_edit_player.assigned_animation == "idle_drawn", "Tweaker drives idle edits")
 	game.queue_free()
 	await process_frame
 	print("Skeleton tests: ",failures," failures")

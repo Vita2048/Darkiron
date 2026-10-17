@@ -28,7 +28,7 @@ func same(a: Array, b: Array) -> bool:
 	return true
 
 func run() -> void:
-	var scene = load("res://characters/run_sheathed.tscn")
+	var scene = load("res://characters/DarkironAnimationsTweaker.tscn")
 	var preview = scene.instantiate()
 	root.add_child(preview)
 	preview.set_process(false)
@@ -36,7 +36,7 @@ func run() -> void:
 	player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	
 	check(player.has_animation("climb_sheathed"), "AnimationPlayer has climb_sheathed animation")
-	check(player.has_animation("climb"), "AnimationPlayer has climb animation alias")
+	check(not player.has_animation("climb_drawn"), "No impossible drawn climb")
 	
 	var clip: Animation = player.get_animation("climb_sheathed")
 	check(clip.get_track_count() == 63, "Climb animation has all 63 tracks")
@@ -152,9 +152,8 @@ func run() -> void:
 	actor.rig.run_weight = 0.0
 	actor.rig.move_weight = 0.0
 	actor.rig.clock = preview.rig.clock
-	actor.rig._update_skeleton(0)
 	actor.rig._update_run_edits()
-	check(not actor.rig.skeleton_active, "Skeleton from darkiron.tscn is deactivated during climbing")
+	check(actor.rig.run_edit_player.assigned_animation == "climb_sheathed", "Gameplay selects the tweaker climb")
 	check(actor.rig.run_edit_weight == 1.0, "Climbing bone edits have full weight")
 	var actual := rendered(actor.rig)
 	if not same(saved_pose, actual):

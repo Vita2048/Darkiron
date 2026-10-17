@@ -33,7 +33,7 @@ func run() -> void:
 	actor.weapon_blend = 0
 	actor.running = true
 	actor.velocity = Vector2(330, 0)
-	var preview = load("res://characters/run_sheathed.tscn").instantiate()
+	var preview = load("res://characters/DarkironAnimationsTweaker.tscn").instantiate()
 	root.add_child(preview)
 	preview.set_process(false)
 	var player: AnimationPlayer = preview.get_node("Controls/AnimationPlayer")
@@ -105,11 +105,11 @@ func run() -> void:
 	check(poses_equal(capture(edited), edited_pose), "Repeated/backward seeking is deterministic")
 	actor.weapon_blend = 1
 	actor.rig._update_run_edits()
-	check(is_zero_approx(actor.rig.run_edit_weight), "Drawn weapon excludes sheathed-run edits")
+	check(is_zero_approx(actor.rig.run_edit_weight), "Missing drawn clip never reuses sheathed edits")
 	actor.weapon_blend = 0
 	actor.crouching = true
 	actor.rig._update_run_edits()
-	check(is_zero_approx(actor.rig.run_edit_weight), "Crouch excludes run edits")
+	check(is_zero_approx(actor.rig.run_edit_weight), "Missing crouch clip never reuses run edits")
 	# Verify saving/reopening the editing scene preserves those same keys.
 	var packed := PackedScene.new()
 	check(packed.pack(preview) == OK, "Preview scene packs")
@@ -131,7 +131,7 @@ func run() -> void:
 		background.color = Color("202830")
 		viewport.add_child(background)
 		for i in 2:
-			var display = (load("res://characters/run_sheathed.tscn") if i == 0 else packed).instantiate()
+			var display = (load("res://characters/DarkironAnimationsTweaker.tscn") if i == 0 else packed).instantiate()
 			display.position = Vector2(230 + 430 * i, 400)
 			display.scale = Vector2.ONE * 2
 			viewport.add_child(display)

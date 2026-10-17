@@ -24,22 +24,28 @@ func apply_parts(records: Array, hip: Vector2, weight: float) -> void:
 	var base := {"Hip": Transform2D(0, hip)}
 	var assignments: Array = []
 	var counts := {}
+	var arm_count := 0
+	for record in records:
+		if record.index == 3: arm_count += 1
+	var arm_side := "Right"
 	for record in records:
 		var index: int = record.index
 		var count: int = counts.get(index, 0)
 		counts[index] = count + 1
+		if index == 3: arm_side = "Left" if count == 0 and arm_count > 1 else "Right"
 		var bone_name := ""
 		match index:
 			0: bone_name = "Head"
 			1: bone_name = "Torso"
-			2:
+			2, 11:
 				if count == 0: bone_name = "Weapon"
-			3: bone_name = "LeftShoulder" if count == 0 else "RightShoulder"
-			4: bone_name = "LeftForearm" if count == 0 else "RightForearm"
+			9, 10: bone_name = "Weapon"
+			3: bone_name = "LeftShoulder" if count == 0 and arm_count > 1 else "RightShoulder"
+			4: bone_name = "LeftForearm" if count == 0 and arm_count > 1 else "RightForearm"
 			6: bone_name = "LeftThigh" if count == 0 else "RightThigh"
 			7: bone_name = "LeftShin" if count == 0 else "RightShin"
 			8: bone_name = "LeftFoot" if count == 0 else "RightFoot"
-			13: bone_name = "RightHand"
+			13: bone_name = arm_side + "Hand"
 			14: bone_name = "LeftHand"
 		if bone_name.is_empty(): continue
 		var origin: Vector2 = record.at

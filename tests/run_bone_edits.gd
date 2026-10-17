@@ -25,7 +25,7 @@ func same(a: Array, b: Array) -> bool:
 	return true
 
 func run() -> void:
-	var scene = load("res://characters/run_sheathed.tscn")
+	var scene = load("res://characters/DarkironAnimationsTweaker.tscn")
 	var preview = scene.instantiate()
 	root.add_child(preview)
 	preview.set_process(false)
@@ -126,7 +126,6 @@ func run() -> void:
 	live_player.remove_animation_library("")
 	live_player.add_animation_library("", restored_player.get_animation_library(""))
 	live_player.play("run_sheathed")
-	actor.rig._update_skeleton(0)
 	actor.rig._update_run_edits()
 	check(same(changed, rendered(actor.rig)), "Actual game applies saved native bone edits identically to preview")
 	actor.facing = -1
@@ -134,7 +133,7 @@ func run() -> void:
 	check(actor.rig.scale.x == -1, "Edited run mirrors with gameplay facing")
 	actor.weapon_blend = 1
 	actor.rig._update_run_edits()
-	check(actor.rig.run_edit_weight == 0, "Bone edits excluded with weapon drawn")
+	check(actor.rig.run_edit_weight == 0, "Missing drawn clip never reuses sheathed bone edits")
 	if "--visual" in OS.get_cmdline_user_args():
 		await make_visual(scene, saved, clip.length / 3)
 	for node in [preview, baseline, restored, game]: node.queue_free()

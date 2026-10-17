@@ -13,159 +13,86 @@ func _grounded() -> bool:
 	return (editor_preview and preview_grounded) or fighter.is_on_floor()
 
 func _run_vector(property: String) -> Vector2:
-	return Vector2.ZERO if run_controls == null or run_edit_weight == 0.0 else (run_controls.get(property) as Vector2) * run_edit_weight
+	var value := Vector2.ZERO
+	if run_controls != null: value += (run_controls.get(property) as Vector2) * run_edit_weight
+	if recoil_controls != null: value += (recoil_controls.get(property) as Vector2) * recoil_edit_weight
+	return value
 
 func _run_angle(property: String) -> float:
-	return 0.0 if run_controls == null or run_edit_weight == 0.0 else deg_to_rad(float(run_controls.get(property))) * run_edit_weight
+	var value := 0.0
+	if run_controls != null: value += float(run_controls.get(property)) * run_edit_weight
+	if recoil_controls != null: value += float(recoil_controls.get(property)) * recoil_edit_weight
+	return deg_to_rad(value)
 
-func _update_run_edits() -> void:
-	run_edit_weight = 0.0
-	if run_edit_player == null: return
-	if fighter.health > 0 and _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover:
-		run_edit_weight = run_weight * move_weight * (1.0 - fighter.weapon_blend)
-		if run_edit_weight > 0.0 and run_edit_player.has_animation("run_sheathed"):
-			var clip := run_edit_player.get_animation("run_sheathed")
-			run_edit_player.seek(_gait_phase() * clip.length, true)
-	elif fighter.health > 0 and fighter.climbing:
-		run_edit_weight = 1.0 - fighter.weapon_blend
-		if run_edit_weight > 0.0:
-			var anim_name := "climb_sheathed" if run_edit_player.has_animation("climb_sheathed") else "climb"
-			if run_edit_player.has_animation(anim_name):
-				var clip := run_edit_player.get_animation(anim_name)
-				run_edit_player.seek(_gait_phase() * clip.length, true)
-
+# The tweaker Controls branch is the only runtime animation source.
 var cover_pose: Node2D
 var cover_player: AnimationPlayer
-
-# Native authored scene: no procedural bone writes while editing.
-const SkeletonCharacter = preload("res://characters/darkiron.tscn")
+# Compatibility with the movement playground's reference character.
 var skeleton_character: Node2D
-var skeleton_animation: AnimationPlayer
-var skeleton_active := false
-var procedural_override := false
-var cover_time := 0.0
-var skel_clip := ""
-var air_time := 0.0
-var crouch_time := 0.0
-var crouch_active := false
-var cover_active := false
-var skeleton_weapon: Node2D
-# Clip resources are authoritative. Locomotion remains distance-driven so
-# changing speed or direction does not slide planted feet.
-func _clip_length(state: String) -> float:
-	return skeleton_animation.get_animation(state).length
-
-# Cover and crouch are enter / hold-at-midpoint / exit timelines.
-func _held_clip_time(time: float, held: bool, dt: float, length: float) -> float:
-	var midpoint := length * 0.5
-	if held:
-		if time > midpoint:
-			time = length - time
-		return minf(midpoint, time + dt)
-	if time < midpoint:
-		time = length - time
-	return minf(length, time + dt)
+var procedural_override := true
+var recoil_controls: Node2D
+var recoil_player: AnimationPlayer
+var recoil_layer: Skeleton2D
+var recoil_edit_weight := 0.0
+var edit_elapsed := 0.0
+var edit_clip := ""
 
 func _ready() -> void:
-	if editor_preview or Engine.is_editor_hint():
-		return
-	if not fighter.enemy and not fighter.drake and not fighter.azure:
-		var edit_scene: Node = load("res://characters/run_sheathed.tscn").instantiate()
-		run_controls = edit_scene.get_node("Controls")
-		edit_scene.remove_child(run_controls)
-		edit_scene.free()
-		add_child(run_controls)
-		run_bone_layer = run_controls.get_node_or_null("Skeleton2D")
-		run_edit_player = run_controls.get_node("AnimationPlayer")
-		run_edit_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
-		run_edit_player.play("run_sheathed")
-		run_edit_player.advance(0)
-		if skeleton_character == null:
-			skeleton_character = SkeletonCharacter.instantiate()
-			add_child(skeleton_character)
-		else:
-			skeleton_character.reparent(self, false)
-		skeleton_character.position = Vector2.ZERO
-		skeleton_character.process_mode = Node.PROCESS_MODE_INHERIT
-		skeleton_animation = skeleton_character.get_node("AnimationPlayer")
-		skeleton_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
-		skeleton_weapon = skeleton_character.get_node_or_null("Skeleton2D/Hip/Torso/RightShoulder/RightForearm/RightHand/Weapon") as Node2D
-		skeleton_character.hide()
-		_clean_skeleton(skeleton_character)
-
-func _clean_skeleton(node: Node) -> void:
-	if node is CanvasItem:
-		(node as CanvasItem).texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	if node is Polygon2D:
-		(node as Polygon2D).antialiased = true
-	for child in node.get_children():
-		_clean_skeleton(child)
+	if editor_preview or Engine.is_editor_hint(): return
+	if is_instance_valid(skeleton_character): skeleton_character.hide()
+	if fighter.enemy or fighter.drake or fighter.azure: return
+	var scene: Node = load("res://characters/DarkironAnimationsTweaker.tscn").instantiate()
+	run_controls = scene.get_node("Controls")
+	scene.remove_child(run_controls)
+	scene.free()
+	recoil_controls = run_controls.duplicate()
+	add_child(run_controls)
+	add_child(recoil_controls)
+	run_bone_layer = run_controls.get_node("Skeleton2D")
+	run_edit_player = run_controls.get_node("AnimationPlayer")
+	recoil_layer = recoil_controls.get_node("Skeleton2D")
+	recoil_player = recoil_controls.get_node("AnimationPlayer")
+	for player in [run_edit_player, recoil_player]:
+		player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	_update_run_edits()
 
 func _gait_phase() -> float:
 	return fposmod(fighter.gait, TAU) / TAU
 
-func _skeleton_state() -> String:
-	if fighter.climbing:
-		return "climb"
-	if not _grounded():
-		return "air"
-	if cover_active:
-		return "cover"
-	if crouch_active:
-		return "crouch"
-	if absf(fighter.velocity.x) > 12:
-		return "run" if fighter.running else "walk"
-	return "idle"
+func _edit_state() -> String:
+	if fighter.health <= 0: return "death"
+	if fighter.climbing: return "climb_sheathed"
+	var state := "idle"
+	if not _grounded(): state = "air"
+	elif fighter.in_cover: state = "cover"
+	elif fighter.crouching: state = "crouch"
+	elif absf(fighter.velocity.x) > 12: state = "run" if fighter.running else "walk"
+	return state + ("_drawn" if fighter.weapon_blend >= 0.5 else "_sheathed")
 
-func _enter_skeleton_state(state: String) -> void:
-	skel_clip = state
-	air_time = 0.0
-	skeleton_animation.play(state)
-	skeleton_animation.advance(0)
-
-func _update_skeleton(dt: float) -> void:
-	if skeleton_character == null:
-		return
-	if procedural_override:
-		skeleton_active = false
-		skeleton_character.hide()
-		skel_clip = ""
-		return
-	if fighter.health <= 0 or fighter.weapon_blend < 0.999 or fighter.climbing:
-		skeleton_active = false
-		skeleton_character.hide()
-		skel_clip = ""
-		cover_active = false
-		crouch_active = false
-		cover_time = 0.0
-		crouch_time = 0.0
-		return
-	var cover_length := _clip_length("cover")
-	if fighter.in_cover or cover_active:
-		cover_time = _held_clip_time(cover_time, fighter.in_cover, dt, cover_length)
-		cover_active = fighter.in_cover or cover_time < cover_length
-	var crouch_length := _clip_length("crouch")
-	var crouch_held: bool = fighter.crouching and _grounded()
-	if crouch_held or crouch_active:
-		crouch_time = _held_clip_time(crouch_time, crouch_held, dt, crouch_length)
-		crouch_active = crouch_held or crouch_time < crouch_length
-	var state := _skeleton_state()
-	if state != skel_clip:
-		_enter_skeleton_state(state)
-	var time := 0.0
-	match state:
-		"idle": time = fposmod(clock, _clip_length("idle"))
-		"walk": time = _gait_phase() * _clip_length("walk")
-		"run": time = _gait_phase() * _clip_length("run")
-		"climb": time = _gait_phase() * _clip_length("climb")
-		"air":
-			air_time = minf(air_time + dt, _clip_length("air"))
-			time = air_time
-		"crouch": time = crouch_time
-		"cover": time = cover_time
-	skeleton_animation.seek(time, true)
-	skeleton_active = true
-	skeleton_character.show()
+func _update_run_edits(dt: float = 0.0) -> void:
+	run_edit_weight = 0.0
+	recoil_edit_weight = 0.0
+	if run_edit_player == null: return
+	var selected := _edit_state()
+	if not run_edit_player.has_animation(selected): return
+	if selected != edit_clip:
+		edit_elapsed = 0.0
+		edit_clip = selected
+	edit_elapsed += dt
+	var clip := run_edit_player.get_animation(selected)
+	var time := fposmod(edit_elapsed, clip.length)
+	if selected.begins_with("idle"): time = fposmod(clock, clip.length)
+	if selected.begins_with("run") or selected.begins_with("walk") or selected.begins_with("climb"):
+		time = _gait_phase() * clip.length
+	if selected == "death": time = minf(fighter.dead_time, clip.length)
+	if run_edit_player.assigned_animation != selected: run_edit_player.play(selected)
+	run_edit_player.seek(time, true)
+	run_edit_weight = 1.0
+	if recoil_player != null and fighter.recoil > 0 and fighter.health > 0 and not fighter.climbing:
+		recoil_player.play("recoil_drawn")
+		var recoil_clip := recoil_player.get_animation("recoil_drawn")
+		recoil_player.seek((1.0 - fighter.recoil) * recoil_clip.length, true)
+		recoil_edit_weight = 1.0
 
 var fighter: CharacterBody2D
 const Armor = preload("res://scripts/vector_armor.gd")
@@ -193,8 +120,7 @@ func _process(dt: float) -> void:
 	stand_weight = move_toward(stand_weight, 1.0 if standing else 0.0, dt * 8)
 	var locomotion: bool = _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health > 0
 	move_weight = move_toward(move_weight, 1.0 if locomotion and absf(fighter.velocity.x)>12 else 0.0, dt*8)
-	_update_skeleton(dt)
-	_update_run_edits()
+	_update_run_edits(dt)
 	queue_redraw()
 
 func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WHITE) -> void:
@@ -277,7 +203,7 @@ func grounded_leg(hip: Vector2,foot: Vector2,front_leg: bool,tint: Color) -> voi
 	var root := hip.lerp(base+standing[0],stand_weight)
 	var k := knee(hip,foot,1).lerp(base+standing[1],stand_weight)
 	var ankle := foot.lerp(base+standing[2],stand_weight)
-	if run_edit_weight > 0.0:
+	if not _run_vector("front_foot_offset" if front_leg else "back_foot_offset").is_zero_approx():
 		ankle += _run_vector("front_foot_offset" if front_leg else "back_foot_offset")
 		k = knee(root, ankle, 1)
 	segment(6,root,k,38 if front_leg else 33,tint)
@@ -425,18 +351,8 @@ func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 func _draw() -> void:
 	if not is_instance_valid(fighter):
 		return
-	if skeleton_active and not procedural_override:
-		for node in parts:
-			node.visible = false
-		scale = Vector2(fighter.facing, 1)
-		modulate = Color.WHITE
-		if fighter.recoil > 0.65 and is_instance_valid(skeleton_weapon):
-			var tip := to_local(skeleton_weapon.to_global(Vector2(46, 17)))
-			var dir := (to_local(skeleton_weapon.to_global(Vector2(60, 17))) - tip).angle()
-			draw_set_transform(tip, dir, Vector2.ONE)
-			draw_colored_polygon(PackedVector2Array([Vector2(0,-9), Vector2(33,-3), Vector2(16,0), Vector2(39,8), Vector2(0,7)]), Color(1,0.78,0.34,fighter.recoil))
-			draw_set_transform(Vector2.ZERO)
-		return
+	rotation = 0.0
+	position = Vector2.ZERO
 	part_cursor = 0
 	run_bone_records.clear()
 	scale.x = fighter.facing * lerpf(1.0,0.83,cover_weight)
@@ -544,28 +460,19 @@ func _draw() -> void:
 	var elbow := torso+Vector2(12,33)
 	var hand := torso+Vector2(36,24)
 	if fighter.climbing:
-		var far_shoulder := torso + Vector2(8, 9)
-		var far_elbow := torso + Vector2(18, -8)
-		var far_hand := torso + Vector2(18, -33 - sin(cycle) * 16)
-		segment(3, far_shoulder, far_elbow, 24, dark)
-		segment(4, far_elbow, far_hand, 18, dark, false)
-		if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body):
-			var far_wrist_angle := (far_hand - far_elbow).angle() - PI / 2
-			part(14, far_hand, Vector2(10, 12), far_wrist_angle - 0.10, dark)
-		elbow = torso + Vector2(9, -8)
-		hand = torso + Vector2(15, -33 + sin(cycle) * 16)
-		segment(3, shoulder, elbow, 24)
-		segment(4, elbow, hand, 18, Color.WHITE, false)
-		if fighter.drake or fighter.azure or (not fighter.enemy and fighter.hybrid_body):
-			var wrist_angle := (hand - elbow).angle() - PI / 2
-			part(13, hand, Vector2(12, 13), wrist_angle - 0.10, Color.WHITE)
+		segment(3,torso+Vector2(8,9),torso+Vector2(18,-8),24,dark)
+		segment(4,torso+Vector2(18,-8),torso+Vector2(18,-33-sin(cycle)*16),18,dark)
+		elbow = torso + Vector2(9,-8)
+		hand = torso + Vector2(15,-33 + sin(cycle)*16)
+		segment(3,shoulder,elbow,24)
+		segment(4,elbow,hand,18)
 	elif fighter.in_cover:
 		# Keep the hand anchored to the actual pistol grip while the rifle rotates upright.
 		elbow = torso+Vector2(-17,36)
 		hand = torso+Vector2(3,24)
 		var hybrid: bool = fighter.drake or fighter.azure or not fighter.enemy
-		var cover_gun := torso+Vector2(0 if hybrid else 18,7)
-		var cover_angle := -1.4
+		var cover_gun := torso+Vector2(0 if hybrid else 18,7)+_run_vector("weapon_offset")
+		var cover_angle := -1.4+_run_angle("weapon_tilt_degrees")
 		if authored_cover:
 			cover_gun = torso + cover_pose.get_node("Torso/Weapon").position
 			cover_angle = cover_pose.get_node("Torso/Weapon").rotation
@@ -584,8 +491,8 @@ func _draw() -> void:
 	else:
 		var kick: float = fighter.recoil*6
 		var reach := (1.0-equipped)*34
-		var gun_at := torso+Vector2(32-kick-reach,13-reach)
-		var gun_angle: float = -fighter.recoil*0.055-(1.0-equipped)
+		var gun_at := torso+Vector2(32-kick-reach,13-reach)+_run_vector("weapon_offset")
+		var gun_angle: float = -fighter.recoil*0.055-(1.0-equipped)+_run_angle("weapon_tilt_degrees")
 		var grip := gun_at+(Vector2(-24,79)*Vector2(0.99,0.29)).rotated(gun_angle)
 		elbow = weapon_elbow(shoulder,grip) if (not fighter.enemy or fighter.azure) else torso+Vector2(-3,34)
 		part(11 if fighter.recoil>0.35 else 2,gun_at,Vector2(99,29),gun_angle,Color(1,1,1,equipped))
@@ -605,5 +512,8 @@ func _draw() -> void:
 
 	if run_bone_layer != null and run_edit_weight > 0.0:
 		run_bone_layer.apply_parts(run_bone_records, hip, run_edit_weight)
+	if recoil_layer != null and recoil_edit_weight > 0.0:
+		for record in run_bone_records: record.transform = record.node.transform
+		recoil_layer.apply_parts(run_bone_records, hip, recoil_edit_weight)
 	for i in range(part_cursor,parts.size()):
 		parts[i].visible = false
