@@ -26,6 +26,15 @@ func _ready() -> void:
 		skeleton_animation = skeleton_character.get_node("AnimationPlayer")
 		skeleton_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		skeleton_character.hide()
+		_clean_skeleton(skeleton_character)
+
+func _clean_skeleton(node: Node) -> void:
+	if node is CanvasItem:
+		(node as CanvasItem).texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	if node is Polygon2D:
+		(node as Polygon2D).antialiased = true
+	for child in node.get_children():
+		_clean_skeleton(child)
 
 func _update_skeleton(dt: float) -> void:
 	if skeleton_character == null:
