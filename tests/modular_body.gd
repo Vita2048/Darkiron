@@ -25,6 +25,7 @@ func run() -> void:
 	for actor in [game.player]+game.enemies:
 		actor.set_physics_process(false)
 		actor.rig.set_process(false)
+		actor.rig.procedural_override = true
 	for enemy in game.enemies: enemy.visible = false
 	var p = game.player
 	p.position = Vector2(700,720)

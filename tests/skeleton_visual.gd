@@ -18,10 +18,10 @@ func run() -> void:
 		var player: AnimationPlayer = character.get_node("AnimationPlayer")
 		player.play("cover")
 		player.pause()
-		player.seek(i*.2,true)
+		player.seek(i*.05,true)
 		var label := Label.new()
 		label.position = Vector2(75+i*300,550)
-		label.text = ["0.0s STANDING","0.2s ENTER","0.4s COVER","0.6s EXIT","0.8s STANDING"][i]
+		label.text = ["0.00s ENTER","0.05s ENTER","0.10s COVER","0.15s EXIT","0.20s STANDING"][i]
 		viewport.add_child(label)
 	for i in 5: await process_frame
 	await RenderingServer.frame_post_draw

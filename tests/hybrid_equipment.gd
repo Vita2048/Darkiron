@@ -21,6 +21,7 @@ func run() -> void:
 	var hero = game.player
 	var drake = game.enemies[0]
 	hero.set_physics_process(false)
+	hero.rig.procedural_override = true
 	hero.position = Vector2(700,720)
 	hero.velocity = Vector2.ZERO
 	hero.facing = 1

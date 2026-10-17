@@ -10,6 +10,7 @@ func run() -> void:
 	for actor in [game.player]+game.enemies:
 		actor.set_physics_process(false)
 		actor.rig.set_process(false)
+		actor.rig.procedural_override = true
 	var rig = game.player.rig
 	var armed := "--armed" in OS.get_cmdline_user_args()
 	game.player.weapon_blend = 1 if armed else 0

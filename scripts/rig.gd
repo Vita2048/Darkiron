@@ -2,6 +2,31 @@
 extends Node2D
 
 var editor_preview := false
+var preview_grounded := false
+var run_controls: Node2D
+var run_edit_player: AnimationPlayer
+var run_edit_weight := 0.0
+var run_bone_records: Array = []
+var run_bone_layer: Skeleton2D
+
+func _grounded() -> bool:
+	return (editor_preview and preview_grounded) or fighter.is_on_floor()
+
+func _run_vector(property: String) -> Vector2:
+	return Vector2.ZERO if run_controls == null or run_edit_weight == 0.0 else (run_controls.get(property) as Vector2) * run_edit_weight
+
+func _run_angle(property: String) -> float:
+	return 0.0 if run_controls == null or run_edit_weight == 0.0 else deg_to_rad(float(run_controls.get(property))) * run_edit_weight
+
+func _update_run_edits() -> void:
+	run_edit_weight = 0.0
+	if run_edit_player == null: return
+	if fighter.health > 0 and _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover:
+		run_edit_weight = run_weight * move_weight * (1.0 - fighter.weapon_blend)
+	if run_edit_weight > 0.0:
+		var clip := run_edit_player.get_animation("run_sheathed")
+		run_edit_player.seek(_gait_phase() * clip.length, true)
+
 var cover_pose: Node2D
 var cover_player: AnimationPlayer
 
@@ -10,12 +35,44 @@ const SkeletonCharacter = preload("res://characters/darkiron.tscn")
 var skeleton_character: Node2D
 var skeleton_animation: AnimationPlayer
 var skeleton_active := false
+var procedural_override := false
 var cover_time := 0.0
+var skel_clip := ""
+var air_time := 0.0
+var crouch_time := 0.0
+var crouch_active := false
+var cover_active := false
+var skeleton_weapon: Node2D
+# Clip resources are authoritative. Locomotion remains distance-driven so
+# changing speed or direction does not slide planted feet.
+func _clip_length(state: String) -> float:
+	return skeleton_animation.get_animation(state).length
+
+# Cover and crouch are enter / hold-at-midpoint / exit timelines.
+func _held_clip_time(time: float, held: bool, dt: float, length: float) -> float:
+	var midpoint := length * 0.5
+	if held:
+		if time > midpoint:
+			time = length - time
+		return minf(midpoint, time + dt)
+	if time < midpoint:
+		time = length - time
+	return minf(length, time + dt)
 
 func _ready() -> void:
 	if editor_preview or Engine.is_editor_hint():
 		return
 	if not fighter.enemy and not fighter.drake and not fighter.azure:
+		var edit_scene: Node = load("res://characters/run_sheathed.tscn").instantiate()
+		run_controls = edit_scene.get_node("Controls")
+		edit_scene.remove_child(run_controls)
+		edit_scene.free()
+		add_child(run_controls)
+		run_bone_layer = run_controls.get_node_or_null("Skeleton2D")
+		run_edit_player = run_controls.get_node("AnimationPlayer")
+		run_edit_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		run_edit_player.play("run_sheathed")
+		run_edit_player.advance(0)
 		if skeleton_character == null:
 			skeleton_character = SkeletonCharacter.instantiate()
 			add_child(skeleton_character)
@@ -25,6 +82,7 @@ func _ready() -> void:
 		skeleton_character.process_mode = Node.PROCESS_MODE_INHERIT
 		skeleton_animation = skeleton_character.get_node("AnimationPlayer")
 		skeleton_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		skeleton_weapon = skeleton_character.get_node_or_null("Skeleton2D/Hip/Torso/RightShoulder/RightForearm/RightHand/Weapon") as Node2D
 		skeleton_character.hide()
 		_clean_skeleton(skeleton_character)
 
@@ -36,32 +94,70 @@ func _clean_skeleton(node: Node) -> void:
 	for child in node.get_children():
 		_clean_skeleton(child)
 
+func _gait_phase() -> float:
+	return fposmod(fighter.gait, TAU) / TAU
+
+func _skeleton_state() -> String:
+	if fighter.climbing:
+		return "climb"
+	if not _grounded():
+		return "air"
+	if cover_active:
+		return "cover"
+	if crouch_active:
+		return "crouch"
+	if absf(fighter.velocity.x) > 12:
+		return "run" if fighter.running else "walk"
+	return "idle"
+
+func _enter_skeleton_state(state: String) -> void:
+	skel_clip = state
+	air_time = 0.0
+	skeleton_animation.play(state)
+	skeleton_animation.advance(0)
+
 func _update_skeleton(dt: float) -> void:
 	if skeleton_character == null:
 		return
-	var eligible: bool = fighter.health > 0 and fighter.is_on_floor() and not fighter.climbing and not fighter.crouching and fighter.weapon_blend >= 0.999 and fighter.recoil <= 0.01 and absf(fighter.velocity.x) < 12
-	if not eligible:
+	if procedural_override:
 		skeleton_active = false
 		skeleton_character.hide()
-		cover_time = 0.0
+		skel_clip = ""
 		return
-	if not skeleton_active:
+	if fighter.health <= 0 or (fighter.weapon_blend < 0.999 and not fighter.climbing):
+		skeleton_active = false
+		skeleton_character.hide()
+		skel_clip = ""
+		cover_active = false
+		crouch_active = false
 		cover_time = 0.0
-		skeleton_animation.play("cover")
-		skeleton_animation.advance(0)
-		skeleton_active = true
-	# One shared timeline: 0=standing, 0.1=cover, 0.2=standing (matches original speed).
-	# Hold the cover key while Up is held; resume the exit half on release.
-	if fighter.in_cover:
-		if cover_time > 0.1:
-			cover_time = 0.2 - cover_time
-		cover_time = minf(0.1, cover_time + dt)
-	else:
-		if cover_time > 0.0 and cover_time < 0.1:
-			cover_time = 0.2 - cover_time
-		if cover_time >= 0.1:
-			cover_time = minf(0.2, cover_time + dt)
-	skeleton_animation.seek(cover_time, true)
+		crouch_time = 0.0
+		return
+	var cover_length := _clip_length("cover")
+	if fighter.in_cover or cover_active:
+		cover_time = _held_clip_time(cover_time, fighter.in_cover, dt, cover_length)
+		cover_active = fighter.in_cover or cover_time < cover_length
+	var crouch_length := _clip_length("crouch")
+	var crouch_held: bool = fighter.crouching and _grounded()
+	if crouch_held or crouch_active:
+		crouch_time = _held_clip_time(crouch_time, crouch_held, dt, crouch_length)
+		crouch_active = crouch_held or crouch_time < crouch_length
+	var state := _skeleton_state()
+	if state != skel_clip:
+		_enter_skeleton_state(state)
+	var time := 0.0
+	match state:
+		"idle": time = fposmod(clock, _clip_length("idle"))
+		"walk": time = _gait_phase() * _clip_length("walk")
+		"run": time = _gait_phase() * _clip_length("run")
+		"climb": time = _gait_phase() * _clip_length("climb")
+		"air":
+			air_time = minf(air_time + dt, _clip_length("air"))
+			time = air_time
+		"crouch": time = crouch_time
+		"cover": time = cover_time
+	skeleton_animation.seek(time, true)
+	skeleton_active = true
 	skeleton_character.show()
 
 var fighter: CharacterBody2D
@@ -83,14 +179,15 @@ func _process(dt: float) -> void:
 	visible = fighter.position.x > fighter.world.camera_x-180 and fighter.position.x < fighter.world.camera_x+1620
 	if not visible or fighter.world.paused:
 		return
-	_update_skeleton(dt)
 	clock += dt
-	run_weight = move_toward(run_weight, 1.0 if fighter.running and fighter.is_on_floor() and fighter.health > 0 else 0.0, dt * 7)
+	run_weight = move_toward(run_weight, 1.0 if fighter.running and _grounded() and fighter.health > 0 else 0.0, dt * 7)
 	cover_weight = move_toward(cover_weight, 1.0 if fighter.in_cover else 0.0, dt * 9)
-	var standing: bool = fighter.is_on_floor() and absf(fighter.velocity.x) < 12 and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health > 0
+	var standing: bool = _grounded() and absf(fighter.velocity.x) < 12 and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health > 0
 	stand_weight = move_toward(stand_weight, 1.0 if standing else 0.0, dt * 8)
-	var locomotion: bool = fighter.is_on_floor() and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health > 0
+	var locomotion: bool = _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health > 0
 	move_weight = move_toward(move_weight, 1.0 if locomotion and absf(fighter.velocity.x)>12 else 0.0, dt*8)
+	_update_skeleton(dt)
+	_update_run_edits()
 	queue_redraw()
 
 func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WHITE) -> void:
@@ -102,6 +199,7 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 	node.configure(index,fighter.drake,not fighter.enemy,(fighter.hybrid_body and not fighter.enemy) or fighter.azure,fighter.azure)
 	node.position = at
 	node.rotation = angle
+	node.skew = 0.0
 	# Keep limb lengths and joint positions stable while balancing the silhouette.
 	var breadth := 1.0
 	match index:
@@ -125,6 +223,8 @@ func part(index: int, at: Vector2, size: Vector2, angle := 0.0, tint := Color.WH
 	node.modulate = tint
 	node.z_index = part_cursor
 	node.visible = true
+	if run_bone_layer != null and run_edit_weight > 0.0:
+		run_bone_records.append({"index": index, "at": at, "angle": angle, "transform": node.transform, "node": node})
 	part_cursor += 1
 
 func segment(index: int, a: Vector2, b: Vector2, width: float, tint := Color.WHITE,glove := true) -> void:
@@ -276,7 +376,7 @@ func gait_leg_points(hip: Vector2,phase: float,front_leg: bool) -> Array[Vector2
 	var rest := standing_points(front_leg)
 	var rest_ankle := Vector2(-4+rest[2].x,-11)
 	var target := walk_ankle(phase).lerp(run_ankle(phase),run_weight)+Vector2(hip.x,0)
-	var ankle := rest_ankle.lerp(target,move_weight)
+	var ankle := rest_ankle.lerp(target,move_weight) + _run_vector("front_foot_offset" if front_leg else "back_foot_offset")
 	var root := hip+rest[0]*(1.0-move_weight)
 	return [root,knee(root,ankle,1),ankle]
 
@@ -285,6 +385,7 @@ func gait_leg(hip: Vector2,phase: float,front_leg: bool,tint: Color) -> void:
 	segment(6,pose[0],pose[1],38 if front_leg else 33,tint)
 	segment(7,pose[1],pose[2],31 if front_leg else 27,tint)
 	var toe := lerpf(walk_foot_angle(phase),run_foot_angle(phase),run_weight)*move_weight
+	toe += _run_angle("front_foot_pitch_degrees" if front_leg else "back_foot_pitch_degrees")
 	part(8,pose[2]-Vector2(-5,8).rotated(toe),Vector2(34,19),toe,tint)
 
 # Solve the rear elbow branch with fixed bone lengths, keeping the wrist
@@ -299,8 +400,10 @@ func weapon_elbow(shoulder: Vector2,wrist: Vector2) -> Vector2:
 
 func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 	var swing := -walk_angles(phase).lerp(run_angles(phase),run_weight).x * lerpf(0.7,0.9,run_weight)*move_weight
+	swing += _run_angle("back_arm_swing_degrees" if far else "front_arm_swing_degrees")
 	var elbow := shoulder + Vector2(sin(swing),cos(swing))*29
 	var bend := lerpf(0.12,1.85,run_weight)
+	bend += _run_angle("back_elbow_bend_degrees" if far else "front_elbow_bend_degrees")
 	var hand := elbow + Vector2(sin(swing+bend),cos(swing+bend))*27
 	segment(3,shoulder,elbow,28,tint)
 	segment(4,elbow,hand,19,tint,false)
@@ -311,23 +414,30 @@ func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 func _draw() -> void:
 	if not is_instance_valid(fighter):
 		return
-	if skeleton_active:
+	if skeleton_active and not procedural_override:
 		for node in parts:
 			node.visible = false
 		scale = Vector2(fighter.facing, 1)
 		modulate = Color.WHITE
+		if fighter.recoil > 0.65 and is_instance_valid(skeleton_weapon):
+			var tip := to_local(skeleton_weapon.to_global(Vector2(46, 17)))
+			var dir := (to_local(skeleton_weapon.to_global(Vector2(60, 17))) - tip).angle()
+			draw_set_transform(tip, dir, Vector2.ONE)
+			draw_colored_polygon(PackedVector2Array([Vector2(0,-9), Vector2(33,-3), Vector2(16,0), Vector2(39,8), Vector2(0,7)]), Color(1,0.78,0.34,fighter.recoil))
+			draw_set_transform(Vector2.ZERO)
 		return
 	part_cursor = 0
+	run_bone_records.clear()
 	scale.x = fighter.facing * lerpf(1.0,0.83,cover_weight)
 	scale.y = lerpf(1.0,0.96,cover_weight)
 	modulate = Color.WHITE.lerp(Color(0.58,0.68,0.82),cover_weight)
-	var moving: bool = absf(fighter.velocity.x) > 12 and fighter.is_on_floor()
+	var moving: bool = absf(fighter.velocity.x) > 12 and _grounded()
 	var cycle: float = fighter.gait
 	var bob: float = absf(sin(cycle)) * 3 if moving else sin(clock*2.8)*1.1
 	var hip := Vector2(-4, -76 + bob)
 	hip.y += sin(cycle*2)*3*run_weight
 	hip.y = lerpf(hip.y,-standing_height(),stand_weight)
-	var locomotion: bool = fighter.is_on_floor() and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health>0
+	var locomotion: bool = _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health>0
 	if locomotion:
 		hip.y = -gait_height(cycle)
 	var front := Vector2(9, -3)
@@ -335,7 +445,7 @@ func _draw() -> void:
 	if moving:
 		front += Vector2(sin(cycle)*25, -maxf(0,cos(cycle))*15)
 		back += Vector2(sin(cycle+PI)*25, -maxf(0,cos(cycle+PI))*15)
-	if not fighter.is_on_floor():
+	if not _grounded():
 		front = Vector2(17,-22)
 		back = Vector2(-22,-12)
 	if fighter.climbing:
@@ -360,10 +470,11 @@ func _draw() -> void:
 		position.y = -12
 		modulate.a = maxf(0.35, 1 - fighter.dead_time * 0.12)
 	var dark := Color(0.62,0.65,0.70) if (not fighter.enemy or fighter.drake or fighter.azure) else Color(0.46,0.53,0.64)
-	var torso := hip + Vector2(2 + run_weight*13 - cover_weight*5,-47)
+	hip += _run_vector("hip_offset")
+	var torso := hip + Vector2(2 + run_weight*13 - cover_weight*5,-47) + _run_vector("torso_offset")
 	# Breathing moves the chest only; planted legs do not repeatedly buckle.
 	torso.y += sin(clock*2.8)*0.7*stand_weight
-	var lean := 0.17*run_weight - 0.11*cover_weight
+	var lean := 0.17*run_weight - 0.11*cover_weight + _run_angle("torso_lean_degrees")
 	if authored_cover:
 		torso = hip + cover_pose.get_node("Torso").position
 		lean = cover_pose.get_node("Torso").rotation
@@ -386,7 +497,7 @@ func _draw() -> void:
 
 	# The coat is intentionally removed. The slung shotgun sits close to the back.
 	if holstered > 0 and fighter.health > 0:
-		part(2,torso+Vector2(-22,4),Vector2(89,26),-1.18,Color(0.8,0.85,0.95,holstered))
+		part(2,torso+Vector2(-22,4)+_run_vector("weapon_offset"),Vector2(89,26),-1.18+_run_angle("weapon_tilt_degrees"),Color(0.8,0.85,0.95,holstered))
 	if locomotion:
 		gait_leg(hip,cycle+PI,false,dark)
 	else:
@@ -415,7 +526,7 @@ func _draw() -> void:
 	else:
 		var head_size := Vector2(34,37) if (not fighter.enemy or fighter.azure) else Vector2(40,43)
 		var head_top := -29.0 if (not fighter.enemy or fighter.azure) else -34.0
-		part(0,torso+Vector2(4+run_weight*6,head_top),head_size,lean-0.04)
+		part(0,torso+Vector2(4+run_weight*6,head_top),head_size,lean-0.04+_run_angle("head_tilt_degrees"))
 	var shoulder := torso+Vector2(-9,9)
 	if authored_cover:
 		shoulder = torso + cover_pose.get_node("Torso/RightShoulder").position
@@ -472,5 +583,7 @@ func _draw() -> void:
 
 
 
+	if run_bone_layer != null and run_edit_weight > 0.0:
+		run_bone_layer.apply_parts(run_bone_records, hip, run_edit_weight)
 	for i in range(part_cursor,parts.size()):
 		parts[i].visible = false

@@ -20,7 +20,7 @@ func run() -> void:
 		check(clip.find_track(NodePath(path+":rotation"),Animation.TYPE_VALUE)>=0, path+" rotation track")
 	animation.play("cover")
 	animation.pause()
-	animation.seek(0.4,true)
+	animation.seek(clip.length * 0.5,true)
 	var shoulder: Bone2D = character.get_node("Skeleton2D/Hip/Torso/RightShoulder")
 	var art: Polygon2D = shoulder.get_node("Art")
 	var before := art.global_position
@@ -28,10 +28,11 @@ func run() -> void:
 	for i in 3: await process_frame
 	check(art.global_position.distance_to(before)>5, "Artwork immediately follows bone edit without procedural overwrite")
 	var track := clip.find_track(NodePath("Skeleton2D/Hip/Torso/RightShoulder:position"),Animation.TYPE_VALUE)
-	var key := clip.track_insert_key(track,0.3,shoulder.position)
+	var edit_time := clip.length * 0.25
+	clip.track_insert_key(track,edit_time,shoulder.position)
 	var edited := shoulder.position
 	animation.seek(0,true)
-	animation.seek(0.3,true)
+	animation.seek(edit_time,true)
 	check(shoulder.position.is_equal_approx(edited), "Scrubbing restores edited keyframe")
 	# Save a copy and verify authored edit survives reopening.
 	var packed := PackedScene.new()
@@ -42,7 +43,7 @@ func run() -> void:
 	var restored_player: AnimationPlayer = restored.get_node("AnimationPlayer")
 	restored_player.play("cover")
 	restored_player.pause()
-	restored_player.seek(0.3,true)
+	restored_player.seek(edit_time,true)
 	check(restored.get_node("Skeleton2D/Hip/Torso/RightShoulder").position.is_equal_approx(edited),"Saved key survives reopen")
 	restored.queue_free()
 	character.queue_free()
@@ -55,16 +56,16 @@ func run() -> void:
 	var rig = actor.rig
 	actor.in_cover = true
 	rig._process(0.5)
-	check(rig.skeleton_active and is_equal_approx(rig.cover_time,0.4),"Gameplay enters and holds authored cover")
+	check(rig.skeleton_active and is_equal_approx(rig.cover_time,0.1),"Skeleton holds the authored cover clip")
 	actor.in_cover = false
 	rig._process(0.5)
-	check(is_equal_approx(rig.cover_time,0.8),"Gameplay completes authored exit")
+	check(is_equal_approx(rig.cover_time,0.2),"Cover clip completes its authored exit")
 	actor.velocity.x = 210
 	rig._process(0.1)
-	check(not rig.skeleton_active and not rig.skeleton_character.visible,"Walking returns to existing locomotion")
+	check(rig.skeleton_active and rig.skeleton_character.visible and rig.skel_clip == "walk","Skeleton drives walking locomotion")
 	actor.velocity.x = 0
 	rig._process(0.1)
-	check(rig.skeleton_active,"Standing returns to skeleton")
+	check(rig.skeleton_active and rig.skel_clip == "idle","Skeleton drives idle locomotion")
 	game.queue_free()
 	await process_frame
 	print("Skeleton tests: ",failures," failures")

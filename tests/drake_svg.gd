@@ -22,6 +22,7 @@ func run() -> void:
 	p.enemy = true
 	p.set_physics_process(false)
 	p.rig.set_process(false)
+	p.rig.procedural_override = true
 	game.camera.position = p.position+Vector2(0,-90)
 	game.camera.zoom = Vector2(4,4)
 	p.weapon_drawn = false

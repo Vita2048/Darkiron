@@ -76,6 +76,7 @@ func run() -> void:
 	for actor in [game.player]+game.enemies:
 		actor.set_physics_process(false)
 		actor.rig.set_process(false)
+		actor.rig.procedural_override = true
 	rig.move_weight = 1
 	rig.stand_weight = 0
 	game.player.weapon_drawn = false
