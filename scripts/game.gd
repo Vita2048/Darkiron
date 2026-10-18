@@ -316,7 +316,7 @@ func _physics_process(dt: float) -> void:
 				g.v.y *= -0.42
 				g.v.x *= 0.68
 		if g.fuse <= 0:
-			explode(g.p)
+			explode(g.p,g.get("enemy",false))
 			grenades.remove_at(i)
 	for i in range(particles.size()-1,-1,-1):
 		var p: Dictionary = particles[i]
@@ -580,22 +580,31 @@ func _update_drone_bolts(dt: float) -> void:
 		var previous: Vector2 = bolt.p
 		bolt.life -= dt
 		drone_embers.append({"p":bolt.p,"v":-bolt.v*0.07+Vector2(rng.randf_range(-12,12),rng.randf_range(-22,22)),"life":0.32})
-		bolt.p += bolt.v*dt+Vector2(0,0.5*DRONE_BOLT_GRAVITY*dt*dt)
-		bolt.v.y += DRONE_BOLT_GRAVITY*dt
+		var drake_flame: bool = bolt.get("drake",false)
+		var gravity := 0.0 if drake_flame else DRONE_BOLT_GRAVITY
+		bolt.p += bolt.v*dt+Vector2(0,0.5*gravity*dt*dt)
+		bolt.v.y += gravity*dt
 		var consumed := false
-		# Cover is a dodge stance: bolts streak past, they never stop on the hero.
-		if player.health > 0 and not player.in_cover:
-			var height := 103.0 if player.crouching else 140.0
+		# Drake breath ignores cover. Its head-height path passes above a crouch.
+		if drake_flame:
+			for barrier in barriers:
+				if not barrier.destroyed and _segment_hits(previous,bolt.p,barrier.rect):
+					bolt.p = _hit_position(previous,bolt.p,barrier.rect)
+					fire_impact(bolt.p)
+					consumed = true
+					break
+		if not consumed and player.health > 0 and (drake_flame or not player.in_cover):
+			var height := 103.0 if player.crouching else (175.0 if drake_flame else 140.0)
 			var box := Rect2(player.position-Vector2(23,height),Vector2(46,height))
 			if _segment_hits(previous,bolt.p,box):
 				bolt.p = _hit_position(previous,bolt.p,box)
-				player.take_damage(20,Color("ff534b"))
+				player.take_damage(30 if drake_flame else 20,Color("ff534b"))
 				drone_damage_flash = 0.25
 				shake = 6
 				fire_impact(bolt.p)
 				if player.health <= 0:
 					weapon_selecting = false
-					say("DOWN / Hold UP under the drones' wind-up. R to retry.")
+					say("DOWN / DOWN crouches under Drake fire. R to retry." if drake_flame else "DOWN / Hold UP under the drones' wind-up. R to retry.")
 				consumed = true
 		if not consumed:
 			for rect in platforms:
@@ -621,6 +630,18 @@ func fire_drone(drone: Node2D) -> void:
 	drone_bolts.append({"p":muzzle,"v":velocity,"life":5.0})
 	burst(muzzle,Color("ff9e56"),6)
 	sound("enemy")
+
+func fire_drake_flame(actor: CharacterBody2D) -> void:
+	if not actor.drake or actor.health<=0 or player.health<=0: return
+	var origin: Vector2 = actor.mouth_position()
+	var target: Vector2 = player.head_position()
+	# Maintain a standing head-height firing lane if Darkiron is already ducking.
+	target.y = minf(target.y,player.position.y-135)
+	var direction := (target-origin).normalized()
+	drone_bolts.append({"p":origin,"v":direction*480,"life":3.0,"drake":true,"aim":target})
+	burst(origin,Color("ff9e56"),10)
+	sound("enemy")
+	say("DRAKE FLAME / Hold DOWN to crouch. Cover will not stop the fireball!")
 
 func drone_destroyed(drone: Node2D) -> void:
 	var blast := preload("res://scripts/blast_effect.gd").new()
@@ -658,6 +679,13 @@ func respawn() -> void:
 	grenades.clear()
 	for enemy in enemies:
 		enemy.cooldown = 2.0
+		enemy.grenade_cooldown = rng.randf_range(enemy.GRENADE_INTERVAL,enemy.GRENADE_MAX_INTERVAL)
+		enemy.flame_cooldown = enemy.FLAME_INTERVAL
+		enemy.flame_warning = 0
+		enemy.grenade_warning = 0
+		enemy.noticed_grenade = {}
+		enemy.grenade_reaction = 0
+		enemy.grenade_fleeing = false
 	drone_bolts.clear()
 	drone_damage_flash = 0
 	camera_x = clampf(checkpoint.x-500,0,LEVEL_END-1440)
@@ -707,7 +735,26 @@ func throw_grenade(actor: CharacterBody2D) -> void:
 	grenades.append({"p":actor.position+Vector2(actor.facing*30,-110),"v":Vector2(actor.facing*420,-400),"fuse":1.45})
 	sound("jump")
 
-func explode(at: Vector2) -> void:
+func throw_enemy_grenade(actor: CharacterBody2D) -> void:
+	if not actor.azure: return
+	if actor.health<=0 or player.health<=0: return
+	var origin := actor.position+Vector2(actor.facing*30,-110)
+	# Aim at the player's current position; movement after release evades the blast.
+	var target := player.position+Vector2(0,-10)
+	var travel := 1.0
+	var launch := (target-origin-Vector2(0,.5*1100*travel*travel))/travel
+	grenades.append({"p":origin,"v":launch,"fuse":1.25,"enemy":true})
+	sound("jump")
+	say("GRENADE / Leave cover and move away from the blast!")
+
+func grenade_danger_for(at: Vector2) -> Dictionary:
+	var threat: Dictionary = {}
+	for grenade in grenades:
+		if absf(grenade.p.x-at.x)>260 or grenade.p.y<at.y-220 or grenade.p.y>at.y+45: continue
+		if threat.is_empty() or grenade.fuse<threat.fuse: threat = grenade
+	return threat
+
+func explode(at: Vector2,hostile := false) -> void:
 	var effect := preload("res://scripts/blast_effect.gd").new()
 	effect.world = self
 	effect.position = at
@@ -722,6 +769,11 @@ func explode(at: Vector2) -> void:
 	for enemy in enemies:
 		if (enemy.position+Vector2(0,-60)).distance_to(at) < 185:
 			enemy.take_damage(100)
+	# Cover dodges direct fire, but offers no protection against an area blast.
+	if hostile and player.health>0 and (player.position+Vector2(0,-60)).distance_to(at)<185:
+		player.take_damage(65)
+	# Enemy throws must not clear the player's demolition objectives for free.
+	if hostile: return
 	for barrier in barriers:
 		var rect: Rect2 = barrier.rect
 		var closest := Vector2(clampf(at.x,rect.position.x,rect.end.x),clampf(at.y,rect.position.y,rect.end.y))
@@ -767,10 +819,23 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO,2.4,Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
 	for g in grenades:
-		draw_texture_rect(bullet_glow,Rect2(g.p-Vector2(25,25),Vector2(50,50)),false,Color(1,0.45,0.08,0.5+sin(clock*24)*0.25))
+		var hostile: bool = g.get("enemy",false)
+		draw_texture_rect(bullet_glow,Rect2(g.p-Vector2(25,25),Vector2(50,50)),false,Color(1,0.12 if hostile else 0.45,0.08,0.5+sin(clock*24)*0.25))
+		if hostile:
+			draw_arc(g.p,16+4*sin(clock*16),0,TAU,24,Color(1,.25,.1,.75),2,true)
 		draw_set_transform(g.p,(1.45-g.fuse)*9)
 		draw_texture_rect_region(equipment,Rect2(-8,-15,16,30),Rect2(900,25,350,675))
 		draw_set_transform(Vector2.ZERO)
+	for guard in enemies:
+		if guard.health>0 and guard.grenade_warning>0:
+			_world_text(guard.position+Vector2(-38,-175),"GRENADE",12,Color("ffc080"))
+			draw_arc(guard.position+Vector2(0,-151),9,0,TAU,20,Color("ff9754"),2,true)
+		if guard.health>0 and guard.flame_warning>0:
+			var mouth: Vector2 = guard.mouth_position()
+			var charge: float = 1-guard.flame_warning/guard.FLAME_WINDUP
+			draw_texture_rect(heat_glow,Rect2(mouth-Vector2.ONE*24,Vector2.ONE*48),false,Color(1,.3,.05,.4+charge*.5))
+			draw_circle(mouth,3+charge*4,Color("ffcf94"))
+			_world_text(guard.position+Vector2(-45,-190),"FLAME / DUCK",12,Color("ffc080"))
 	for p in particles:
 		var color: Color = p.c
 		color.a = minf(1,p.life*2)

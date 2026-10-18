@@ -22,7 +22,7 @@ Double-click **Play Darkiron.cmd**. The game starts maximized, fills the window 
 
 Sheathe before climbing. Step close to amber caches to collect bombs; cyan medical cases restore health automatically when needed. Reinforced blast seals resist bullets and require a nearby bomb explosion. Bomb caches disappear after collection and stay collected after checkpoint recovery. Each supplies three bombs when there is room for the full pickup (capacity six). Clear both seals and all six guards, then reach the cyan furnace portal. The relay after the first breach provides a checkpoint; Enter preserves earned progress after death.
 
-Guards turn toward attacks, return fire and pursue along their current platform, stopping before edges. They also take cover against visible fire, with delayed reactions and a 35% chance of missing each opportunity. Time shots for when they emerge, or use grenades. Hits now produce directional glowing sparks and metal fragments. The two yard jumps now cross real abysses: jump near the lip or hold Shift for extra distance.
+Guards turn toward attacks, return fire and pursue along their current platform, stopping before edges. They also take cover against visible fire, with delayed reactions and a 20% chance of missing each opportunity. Time shots for when they emerge, or use grenades. Hits now produce directional glowing sparks and metal fragments. The two yard jumps now cross real abysses: jump near the lip or hold Shift for extra distance.
 
 ## Art and implementation
 
@@ -91,6 +91,8 @@ The original passive target remains available through `debug_bow.tscn`. Run `--s
 Drone exhaust now emits separately from both rear engine nozzles and follows banking. Enemy projectiles are textured fireballs with ember wakes and small Raptor explosions at the actual armor or cover contact point. Holding Up uses the existing gun-cover stance without the extra crouch.
 
 ## Outer yard: hunter relay
+
+All infantry now take cover with an 80% chance, a 0.09-0.18-second reaction, and shorter recovery between attempts. Drake guards charge a flame ball at their mouth for 0.75 seconds, then fire straight toward Darkiron's head position at release; it does not track afterward. A shot deals 30 damage through cover. Hold DOWN to crouch below the head-height firing lane. Drake flame attacks retain a 15-second cooldown. Blue guards choose a fresh random grenade cooldown of 8-14 seconds after every throw, with a 0.65-second warning. Hostile grenades glow red, use a 1.25-second fuse, and inflict 65 damage within 185 units even in cover. Enemy throws do not consume player bombs or open blast seals. All guards react to nearby grenades after 0.35-0.55 seconds and run away on their platform. Close or late-fuse player bombs and trapped guards remain killable. `tests/grenade_combat.gd`, `tests/drake_flame.gd` and `tests/enemy_cover.gd` cover these behaviors; a graphical flame test with `-- --visual` captures mouth charging and ducking under the projectile.
 
 The first abyss now spans x=410–850. The rifle waits on the right bank at x=925. Destroying the hunter relay releases the missing x=525–850 platform section: after a 0.45-second delay it rises from below over 2.4 seconds, with its collision moving alongside the artwork. Once it settles, jump the remaining narrow lip and cross to the rifle. The restored crossing survives checkpoint recovery; R resets it. Verify collision, pause, recovery and a real jump/crossing with `--headless --path . --script res://tests/yard_bridge.gd`.
 

@@ -43,16 +43,28 @@ var alert_time := 0.0
 var cover_reaction := 0.0
 var cover_remaining := 0.0
 var cover_recovery := 0.0
-var cover_chance := 0.65
+var cover_chance := 0.80
+const GRENADE_INTERVAL := 8.0
+const GRENADE_MAX_INTERVAL := 14.0
+const FLAME_INTERVAL := 15.0
+const FLAME_WINDUP := .75
+var flame_cooldown := FLAME_INTERVAL
+var flame_warning := 0.0
+const GRENADE_WINDUP := .65
+var grenade_cooldown := GRENADE_INTERVAL
+var grenade_warning := 0.0
+var grenade_fleeing := false
+var grenade_reaction := 0.0
+var noticed_grenade: Dictionary = {}
 
 func notice_shot(origin: Vector2) -> void:
-	if not enemy or health<=0 or not is_on_floor() or in_cover or cover_reaction>0 or cover_recovery>0:
+	if not enemy or health<=0 or not is_on_floor() or in_cover or grenade_fleeing or cover_reaction>0 or cover_recovery>0:
 		return
 	# A guard must see the attacker; shots from behind still catch him exposed.
 	if (origin.x-position.x)*facing<=0: return
-	cover_recovery = 1.2
+	cover_recovery = .9
 	if world.rng.randf()<cover_chance:
-		cover_reaction = world.rng.randf_range(0.12,0.24)
+		cover_reaction = world.rng.randf_range(.09,.18)
 
 
 func _ready() -> void:
@@ -72,6 +84,7 @@ func _ready() -> void:
 	add_child(rig)
 	patrol_origin = position.x
 	if enemy:
+		if azure: grenade_cooldown = world.rng.randf_range(GRENADE_INTERVAL,GRENADE_MAX_INTERVAL)
 		health = 75
 		facing = -1
 		cooldown = 1.4
@@ -219,6 +232,11 @@ func _end_climb() -> void:
 
 func _update_enemy(dt: float) -> void:
 	ai_clock += dt
+	grenade_cooldown = maxf(0,grenade_cooldown-dt)
+	flame_cooldown = maxf(0,flame_cooldown-dt)
+	running = false
+	grenade_fleeing = false
+	if _escape_grenade(dt): return
 	cover_recovery = maxf(0,cover_recovery-dt)
 	if world.player.health<=0:
 		cover_reaction = 0
@@ -227,14 +245,14 @@ func _update_enemy(dt: float) -> void:
 	if cover_reaction>0:
 		cover_reaction = maxf(0,cover_reaction-dt)
 		if cover_reaction<=0 and is_on_floor():
-			cover_remaining = world.rng.randf_range(0.45,0.85)
+			cover_remaining = world.rng.randf_range(.50,.95)
 			in_cover = true
 	if in_cover:
 		cover_remaining = maxf(0,cover_remaining-dt)
 		velocity.x = 0
 		if cover_remaining>0: return
 		in_cover = false
-		cover_recovery = 1.2
+		cover_recovery = .9
 		cooldown = minf(cooldown,0.12)
 
 	var delta: Vector2 = world.player.position-position
@@ -244,6 +262,34 @@ func _update_enemy(dt: float) -> void:
 			sight = false
 	if sight: alert_time = 8.0
 	else: alert_time = maxf(0,alert_time-dt)
+	# Blue guards choose a fresh random delay of at least eight seconds.
+	if azure and world.has_method("throw_enemy_grenade"):
+		if grenade_warning>0:
+			grenade_warning = maxf(0,grenade_warning-dt)
+			velocity.x = move_toward(velocity.x,0,dt*1000)
+			if grenade_warning<=0 and sight:
+				world.throw_enemy_grenade(self)
+				grenade_cooldown = world.rng.randf_range(GRENADE_INTERVAL,GRENADE_MAX_INTERVAL)
+			return
+		if sight and absf(delta.x)>=120 and grenade_cooldown<=0 and is_on_floor():
+			grenade_warning = GRENADE_WINDUP
+			facing = signf(delta.x)
+			velocity.x = 0
+			return
+	if drake and world.has_method("fire_drake_flame"):
+		if flame_warning>0:
+			flame_warning = maxf(0,flame_warning-dt)
+			velocity.x = move_toward(velocity.x,0,dt*1000)
+			if flame_warning<=0 and sight:
+				facing = signf(delta.x)
+				world.fire_drake_flame(self)
+				flame_cooldown = FLAME_INTERVAL
+			return
+		if sight and absf(delta.x)>=120 and flame_cooldown<=0 and is_on_floor():
+			flame_warning = FLAME_WINDUP
+			facing = signf(delta.x)
+			velocity.x = 0
+			return
 	var desired := 0.0
 	if alert_time>0 and world.player.health>0:
 		if absf(delta.x)>4: facing = signf(delta.x)
@@ -260,6 +306,51 @@ func _update_enemy(dt: float) -> void:
 			safe = true
 	if not safe: desired = 0
 	velocity.x = move_toward(velocity.x,desired,dt*1000)
+
+func _escape_grenade(dt: float) -> bool:
+	if not world.has_method("grenade_danger_for") or not is_on_floor(): return false
+	var danger: Dictionary = world.grenade_danger_for(position)
+	if danger.is_empty():
+		noticed_grenade = {}
+		grenade_reaction = 0
+		return false
+	if danger != noticed_grenade:
+		noticed_grenade = danger
+		grenade_reaction = world.rng.randf_range(.35,.55)
+	grenade_reaction = maxf(0,grenade_reaction-dt)
+	if grenade_reaction>0: return false
+	grenade_fleeing = true
+	running = true
+	in_cover = false
+	crouching = false
+	cover_remaining = 0
+	cover_reaction = 0
+	grenade_warning = 0
+	flame_warning = 0
+	var direction := signf(position.x-float(danger.p.x))
+	if direction==0: direction = -facing
+	facing = direction
+	var safe := false
+	var ahead := position+Vector2(direction*45,0)
+	for platform in world.platforms:
+		if ahead.x>platform.position.x+8 and ahead.x<platform.end.x-8 and absf(position.y-platform.position.y)<12:
+			safe = true
+	# No dodge immunity or teleport: trapped guards remain vulnerable.
+	velocity.x = move_toward(velocity.x,direction*170 if safe else 0,dt*1000)
+	return true
+
+func head_position() -> Vector2:
+	# Use the rendered helmet anchor, including facing and authored poses.
+	for part in rig.parts:
+		if part.index==0 and part.visible:
+			return part.to_global(Vector2(0,45))
+	return position+Vector2(0,-135)
+
+func mouth_position() -> Vector2:
+	for part in rig.parts:
+		if part.index==0 and part.visible:
+			return part.to_global(Vector2(52,65))
+	return position+Vector2(facing*25,-145)
 
 func muzzle() -> Vector2:
 	var standing_lift: float = rig.stand_weight * (rig.standing_height()-76.0)

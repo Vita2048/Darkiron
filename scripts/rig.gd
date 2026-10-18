@@ -348,6 +348,19 @@ func free_arm(shoulder: Vector2,phase: float,tint: Color,far := false) -> void:
 		var wrist_angle := (hand-elbow).angle()-PI/2
 		part(14 if far else 13,hand,Vector2(10,12) if far else Vector2(12,13),wrist_angle-0.10,tint)
 
+func procedural_hip_height(crouched: bool) -> float:
+	var moving := absf(fighter.velocity.x)>12 and _grounded()
+	var bob := absf(sin(fighter.gait))*3 if moving else sin(clock*2.8)*1.1
+	var height := lerpf(-76+bob+sin(fighter.gait*2)*3*run_weight,-standing_height(),stand_weight)
+	if _grounded() and not fighter.climbing and not crouched and not fighter.in_cover and fighter.health>0:
+		height = -gait_height(fighter.gait)
+	return height
+
+func bow_crouch_offset() -> Vector2:
+	if not fighter.crouching: return Vector2.ZERO
+	# Include the procedural stance change as the standing pose blends away.
+	return Vector2(0,27+procedural_hip_height(true)-procedural_hip_height(false))
+
 func _draw() -> void:
 	if not is_instance_valid(fighter):
 		return
@@ -360,13 +373,8 @@ func _draw() -> void:
 	modulate = Color.WHITE.lerp(Color(0.58,0.68,0.82),cover_weight)
 	var moving: bool = absf(fighter.velocity.x) > 12 and _grounded()
 	var cycle: float = fighter.gait
-	var bob: float = absf(sin(cycle)) * 3 if moving else sin(clock*2.8)*1.1
-	var hip := Vector2(-4, -76 + bob)
-	hip.y += sin(cycle*2)*3*run_weight
-	hip.y = lerpf(hip.y,-standing_height(),stand_weight)
+	var hip := Vector2(-4,procedural_hip_height(fighter.crouching))
 	var locomotion: bool = _grounded() and not fighter.climbing and not fighter.crouching and not fighter.in_cover and fighter.health>0
-	if locomotion:
-		hip.y = -gait_height(cycle)
 	var front := Vector2(9, -3)
 	var back := Vector2(-12, -3)
 	if moving:

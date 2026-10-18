@@ -1,7 +1,11 @@
 extends Node2D
 ## Split armored shutters protect the small central reactor lens.
 var world: Node2D
-var destroyed := false
+var destroyed := false:
+	set(value):
+		destroyed = value
+		visible = not value
+		queue_redraw()
 var cycle := 0.0
 var opening := 0.0
 var last_phase := -1
@@ -53,6 +57,7 @@ func exposed() -> bool:
 
 func arrow_entry(a: Vector2,b: Vector2) -> float:
 	contact_core = false
+	if destroyed: return INF
 	var local_a := a-position
 	var local_b := b-position
 	if exposed():
@@ -70,6 +75,7 @@ func arrow_entry(a: Vector2,b: Vector2) -> float:
 	return world.segment_entry(local_a,local_b,HOUSING_PLANE)
 
 func receive_arrow(at: Vector2) -> void:
+	if destroyed: return
 	if contact_core and exposed():
 		destroyed = true
 		world.destroy_yard_relay()
@@ -97,6 +103,7 @@ func panel(rect: Rect2, flipped: bool) -> void:
 		draw_texture_rect_region(atlas,Rect2(rect.position,Vector2(rect.size.x,visible_height)),source)
 
 func _draw() -> void:
+	if destroyed: return
 	if not destroyed:
 		for drone in world.drones:
 			if drone.health <= 0: continue
@@ -108,10 +115,7 @@ func _draw() -> void:
 			var pulse := Vector2.ZERO.lerp(mid,t*2) if t<.5 else mid.lerp(end,(t-.5)*2)
 			draw_circle(pulse,1.8,Color(.5,.9,1,.65))
 	# The generated housing includes the motors, armored pillars and foundation.
-	draw_texture_rect_region(atlas,Rect2(-105,-110,210,210),Rect2(0,58,875,892),Color(.28,.3,.32) if destroyed else Color.WHITE)
-	if destroyed:
-		draw_string(font,Vector2(-65,-128),"RELAY OFFLINE",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color("86969d"))
-		return
+	draw_texture_rect_region(atlas,Rect2(-105,-110,210,210),Rect2(0,58,875,892))
 	if exposed():
 		draw_texture_rect(world.bullet_glow,Rect2(-25,-25,50,50),false,Color(.2,.85,1,.25+.12*sin(world.clock*12)))
 	# Matching armored halves separate vertically, lower half disappears into floor.

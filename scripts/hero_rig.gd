@@ -25,6 +25,7 @@ func bow_body_transform() -> Transform2D:
 		var torso: Transform2D = run_bone_layer.base_transforms.Torso
 		result = hip * run_bone_layer.bones.Hip.transform * hip.affine_inverse() * torso * run_bone_layer.bones.Torso.transform * torso.affine_inverse()
 	result.origin += _run_vector("hip_offset") + _run_vector("torso_offset")
+	result = result * Transform2D(0,bow_crouch_offset())
 	return result
 
 func _ready() -> void:

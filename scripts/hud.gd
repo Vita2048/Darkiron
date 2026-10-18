@@ -120,7 +120,7 @@ func _draw() -> void:
 	if ladder!=Vector3.ZERO:
 		prompt = "S to sheathe before climbing." if world.player.weapon_drawn else "UP / DOWN to climb. SPACE to jump away."
 	if world.player.in_cover:
-		prompt = "IN COVER / Let enemy fire pass, then release UP and return fire."
+		prompt = "IN COVER / Bullets pass. DOWN ducks Drake flames; move away from grenades."
 	if world.notice_time>0:
 		prompt = world.notice
 	draw_rect(Rect2(40,128,850,42),Color(0.025,0.045,0.075,0.8))

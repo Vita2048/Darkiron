@@ -17,9 +17,12 @@ func run() -> void:
 	await frames(10)
 	for e in game.enemies: e.set_physics_process(false)
 	var guard = game.enemies[0]
-	game.player.position = Vector2(600,720)
+	# Isolate rifle cover on the gallery; the yard now starts with a bow and abyss.
+	game.weapons = ["RIFLE"]
+	game.player.weapon_kind = "RIFLE"
+	game.player.position = Vector2(1450,480)
 	game.player.facing = 1
-	guard.position = Vector2(1050,720)
+	guard.position = Vector2(1900,480)
 	guard.velocity = Vector2.ZERO
 	guard.facing = -1
 	guard.cover_chance = 1.0
@@ -44,23 +47,23 @@ func run() -> void:
 	guard.cover_chance = 0
 	guard.notice_shot(game.player.position)
 	check(guard.cover_reaction==0 and guard.cover_recovery>0,"missed reaction leaves guard exposed")
-	guard.cover_chance = 0.65
+	guard.cover_chance = 0.80
 	var successes := 0
 	for i in 100:
 		guard.cover_recovery = 0
 		guard.cover_reaction = 0
 		guard.notice_shot(game.player.position)
 		if guard.cover_reaction>0: successes += 1
-	check(successes>40 and successes<85,"normal chance produces both cover and missed reactions")
+	check(successes>65 and successes<95,"normal chance produces both cover and missed reactions")
 	guard.cover_reaction = 0
 	guard.cover_recovery = 0
 	guard.cover_chance = 1
 	guard.notice_shot(guard.position+Vector2(100,0))
 	check(guard.cover_reaction==0,"guard does not anticipate shots from behind")
 	game.bullets.clear()
-	game.player.position = Vector2(800,720)
+	game.player.position = Vector2(1700,480)
 	game.player.facing = 1
-	guard.position = Vector2(1050,720)
+	guard.position = Vector2(1950,480)
 	guard.in_cover = false
 	guard.cover_recovery = 3
 	game.player.fire()

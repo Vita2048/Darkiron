@@ -103,6 +103,8 @@ func run() -> void:
 	game.drone_bolts.append({"p":Vector2(500,500),"v":Vector2.ZERO,"life":5.0})
 	shoot(game,620)
 	check(game.relay.destroyed,"Single arrow destroys exposed core")
+	check(not game.relay.visible,"Destroyed relay disappears")
+	check(game.relay.arrow_entry(game.relay.position-Vector2(150,0),game.relay.position+Vector2(150,0))==INF,"Destroyed relay no longer blocks arrows")
 	check(game.drone_bolts.is_empty(),"Power loss clears hostile fire")
 	check(game.drones.all(func(d): return d.health==0 and d.falling),"Power loss drops all hunters")
 	check(game.kills==1,"Relay awards exactly one objective")
