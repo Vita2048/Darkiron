@@ -8,6 +8,13 @@ const LADDER_X := 1250.0
 const LEVEL_END := 6300.0
 const ARROW_GRAVITY := 260.0
 const DRONE_BOLT_GRAVITY := 220.0
+const YARD_RIGHT_BANK := 850.0
+const YARD_BRIDGE := Rect2(525,720,325,220)
+const BRIDGE_RISE_SECONDS := 2.4
+var bridge_progress := 0.0
+var bridge_elapsed := 0.0
+var bridge_index := -1
+var bridge_body: AnimatableBody2D
 # Audio tuning in decibels: more negative = quieter. -6 dB halves amplitude.
 const BOW_VOLUME_DB := -22.0
 const SHUTTER_VOLUME_DB := -30.0
@@ -26,7 +33,7 @@ var grenades: Array = []
 var particles: Array = []
 var blast_flashes: Array = []
 var equipment = preload("res://assets/cinderworks-equipment.png")
-var platforms: Array[Rect2] = [Rect2(-200,720,610,220),Rect2(525,720,2395,220),Rect2(3030,720,3570,220),Rect2(1150,480,1600,44),Rect2(3300,480,600,44),Rect2(5000,480,1200,44)]
+var platforms: Array[Rect2] = [Rect2(-200,720,610,220),Rect2(850,720,2070,220),Rect2(3030,720,3570,220),Rect2(1150,480,1600,44),Rect2(3300,480,600,44),Rect2(5000,480,1200,44)]
 var ladders := [Vector3(1250,480,720),Vector3(3400,480,720),Vector3(5100,480,720)]
 var barriers: Array = []
 var caches := [{"p":Vector2(1550,480),"taken":false},{"p":Vector2(3780,720),"taken":false},{"p":Vector2(3700,480),"taken":false}]
@@ -60,7 +67,7 @@ var weapons: Array = ["BOW"]
 var weapon_index := 0
 var weapon_selecting := false
 var weapon_options := 0
-var rifle_pickups: Array = [{"p":Vector2(640,720),"taken":false}]
+var rifle_pickups: Array = [{"p":Vector2(925,720),"taken":false}]
 var fire_texture: Texture2D
 var heat_glow: Texture2D
 var backdrop: Texture2D = preload("res://assets/mountains.jpg")
@@ -99,6 +106,11 @@ func _ready() -> void:
 	_setup_input()
 	for rect in platforms:
 		_make_solid(rect)
+	bridge_index = platforms.size()
+	platforms.append(yard_bridge_rect())
+	bridge_body = _make_solid(platforms[bridge_index],true) as AnimatableBody2D
+	bridge_body.name = "RisingYardBridge"
+	bridge_body.collision_layer = 0
 	for rect in [crate,Rect2(4300,480,85,240)]:
 		barriers.append({"rect":rect,"body":_make_solid(rect),"destroyed":false})
 	crate_body = barriers[0].body
@@ -189,8 +201,9 @@ func _setup_input() -> void:
 	fullscreen_key.physical_keycode = KEY_F11
 	InputMap.action_add_event("fullscreen",fullscreen_key)
 
-func _make_solid(rect: Rect2) -> StaticBody2D:
-	var body := StaticBody2D.new()
+func _make_solid(rect: Rect2,moving := false) -> StaticBody2D:
+	var body: StaticBody2D = AnimatableBody2D.new() if moving else StaticBody2D.new()
+	if moving: body.sync_to_physics = false
 	body.position = rect.get_center()
 	body.collision_layer = 1
 	var shape := CollisionShape2D.new()
@@ -232,6 +245,7 @@ func _process(dt: float) -> void:
 func _physics_process(dt: float) -> void:
 	if paused or completed:
 		return
+	_update_yard_bridge(dt)
 	for i in range(blast_flashes.size()-1,-1,-1):
 		blast_flashes[i].life -= dt
 		if blast_flashes[i].life<=0: blast_flashes.remove_at(i)
@@ -444,6 +458,23 @@ func _update_drones(dt: float) -> void:
 			_spawn_drone_wave()
 	for drone in drones: drone.advance(dt)
 
+func yard_bridge_rect() -> Rect2:
+	return Rect2(YARD_BRIDGE.position+Vector2(0,460*(1-smoothstep(0,1,bridge_progress))),YARD_BRIDGE.size)
+
+func _update_yard_bridge(dt: float) -> void:
+	if not relay.destroyed or bridge_progress >= 1: return
+	bridge_elapsed += dt
+	bridge_progress = clampf((bridge_elapsed-.45)/BRIDGE_RISE_SECONDS,0,1)
+	platforms[bridge_index] = yard_bridge_rect()
+	bridge_body.position = platforms[bridge_index].get_center()
+	bridge_body.collision_layer = 1
+	if bridge_progress >= 1:
+		burst(Vector2(YARD_BRIDGE.position.x,720),Color("b3bdc6"),12)
+		burst(Vector2(YARD_RIGHT_BANK,720),Color("b3bdc6"),12)
+		shake = maxf(shake,2)
+		sound("housing_hit")
+		say("CROSSING RESTORED / Jump the lip and recover the rifle on the right bank.")
+
 func destroy_yard_relay() -> void:
 	kills += 1
 	reinforcement_delay = -1
@@ -456,7 +487,7 @@ func destroy_yard_relay() -> void:
 	burst(relay.position,Color("7eeaff"),65)
 	shake = 12
 	sound("boom")
-	say("POWER SEVERED / Hunters offline. Cross the abyss and recover the rifle.")
+	say("POWER SEVERED / Hunters offline. The crossing is rising from the abyss.")
 
 func _update_arrows(dt: float) -> void:
 	for i in range(arrows.size()-1,-1,-1):

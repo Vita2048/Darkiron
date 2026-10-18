@@ -25,7 +25,7 @@ func visible_x(x: float,width := 0.0) -> bool:
 func _draw() -> void:
 	draw_texture_rect(backdrop,Rect2(world.camera_x*0.74-20,-50,2740,915),false,Color("bdc8d9"))
 	draw_rect(Rect2(world.camera_x,0,1440,900),Color(0.015,0.025,0.05,0.18))
-	for gap in [Vector2(410,525),Vector2(2920,3030)]:
+	for gap in [Vector2(410,world.YARD_RIGHT_BANK),Vector2(2920,3030)]:
 		draw_rect(Rect2(gap.x,720,gap.y-gap.x,400),Color("080d16"))
 		for edge in [gap.x-18,gap.y]:
 			draw_rect(Rect2(edge,720,18,7),Color("e6a354"))
@@ -75,7 +75,7 @@ func _draw() -> void:
 		var at: Vector2 = pickup.p+Vector2(0,-6)
 		draw_texture_rect(world.bullet_glow,Rect2(at-Vector2(52,58),Vector2(104,104)),false,Color("9cc2e8"))
 		draw_texture_rect_region(rifle_tex,Rect2(at.x-48,at.y-28,96,28),Rect2(34,248,1706,432))
-		label(pickup.p+Vector2(-42,-64),"HYBRID RIFLE",13,Color("ffd295"))
+		label(pickup.p+Vector2(-42,-64),"RIFLE",13,Color("ffd295"))
 	prop(3,Rect2(2750,525,100,195),Color.WHITE if world.checkpoint_active else Color("576d7c"))
 	label(Vector2(2730,510),"RELAY / CHECKPOINT",12,Color("86e0dc"))
 	prop(0,Rect2(5840,170,290,310))
@@ -87,7 +87,8 @@ func _draw() -> void:
 	# Environmental signposts; labels explain interactions rather than decoration.
 	for sign in [[Vector2(100,510),"01 / THE OUTER YARD"],[Vector2(700,330),"DRONE PERIMETER"],[Vector2(1440,265),"02 / DEMOLITION GALLERY"],[Vector2(2940,405),"03 / THE CINDERWORKS"],[Vector2(3380,275),"SUPPLY ALCOVE"],[Vector2(5190,255),"04 / FURNACE APPROACH"]]:
 		if visible_x(sign[0].x,260): label(sign[0],sign[1],18,Color("dbb78f"))
-	label(Vector2(420,620),"SPACE / JUMP",12)
+	var crossing_hint := "SPACE / JUMP" if world.bridge_progress>=1 else ("CROSSING RISING" if world.relay.destroyed else "DESTROY RELAY / RESTORE CROSSING")
+	label(Vector2(420,620),crossing_hint,12)
 	label(Vector2(1125,370),"S / SHEATHE   UP / CLIMB",12,Color("c1d8d9"))
 	# Amber practical lights visually connect the route.
 	for x in [150,970,1620,2420,3100,3900,4560,5300,5750]:

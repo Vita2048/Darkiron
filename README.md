@@ -92,6 +92,8 @@ Drone exhaust now emits separately from both rear engine nozzles and follows ban
 
 ## Outer yard: hunter relay
 
+The first abyss now spans x=410–850. The rifle waits on the right bank at x=925. Destroying the hunter relay releases the missing x=525–850 platform section: after a 0.45-second delay it rises from below over 2.4 seconds, with its collision moving alongside the artwork. Once it settles, jump the remaining narrow lip and cross to the rifle. The restored crossing survives checkpoint recovery; R resets it. Verify collision, pause, recovery and a real jump/crossing with `--headless --path . --script res://tests/yard_bridge.gd`.
+
 The main game's three hunters now approach from the distant background, scaling up through the haze before attacking. Their pulsing power links lead to a relay across the first abyss. Killing the last hunter triggers a short recharge and three replacements; drone kills do not count toward the gate objective.
 
 Shoot the cyan core with the bow while the guillotine shutter is raised. The 6.5-second cycle gives a 1.4-second charge warning, a 0.55-second split-door opening, a 0.55-second open hold and a fast 0.18-second closing slam. The relay sits beside the right-hand ladder; hunters patrol above the firing lane. Its generated brass-and-steel housing and opposing armored shutters replace the exposed rails, and only the central reactor lens accepts a killing hit. Openings repeat even while hunters remain alive. One core hit destroys the relay, clears hostile fire and drops all surviving hunters. Relay destruction counts as one objective alongside the five guards, persists through checkpoint recovery, and is required at the furnace gate. R resets everything.

@@ -54,8 +54,8 @@ func advance(dt: float) -> void:
 	var phase := age*(0.8+slot*0.12)+slot*2.1
 	var target: Vector2 = world.player.position
 	# Swap banks after the player crosses the abyss, rather than chasing them.
-	# Retain the last side while they are above the gap (410..525).
-	if target.x >= 525: patrol_side = -1.0
+	# Retain the last side while they are above the expanded yard gap.
+	if target.x >= world.YARD_RIGHT_BANK: patrol_side = -1.0
 	elif target.x <= 410: patrol_side = 1.0
 	var desired := Vector2(target.x+patrol_side*(600+slot*35)+sin(phase)*35,325+slot*40+sin(phase*1.7)*25)
 	var left := YARD_LEFT+slot*25
