@@ -20,7 +20,7 @@ var weapon_kind := "RIFLE"
 # Plasma bow state: aim tilt (positive looks toward the facing ground) and draw amount.
 var bow_angle := -0.08
 var bow_charge := 0.0
-# Debug-range style drag: hold left mouse to aim, drag left for power, release to fire.
+# Debug-range style drag: hold left mouse to aim, drag back (opposite the facing) for power, release to fire.
 var mouse_charging := false
 var drag_start := Vector2.ZERO
 var drag_angle := 0.0
@@ -190,7 +190,7 @@ func _update_mouse_bow() -> void:
 	var origin := position+Vector2(0,-126)
 	if mouse_charging:
 		bow_angle = clampf(drag_angle+(mouse.y-drag_start.y)*0.0035,-1.0,0.6)
-		bow_charge = clampf((drag_start.x-mouse.x)/220.0,0,1)
+		bow_charge = clampf((drag_start.x-mouse.x)*facing/220.0,0,1)
 	else:
 		bow_angle = clampf((mouse.y-origin.y)*0.0035,-1.0,0.6)
 		bow_charge = 0
