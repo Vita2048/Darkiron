@@ -45,7 +45,7 @@ func run() -> void:
 	var shot: Dictionary = game.drone_bolts[0]
 	check(shot.drake and shot.p.distance_to(drake.mouth_position())<.01,"Flame originates at rendered mouth")
 	check(is_equal_approx(shot.aim.x,game.player.head_position().x),"Aim samples Darkiron head at release")
-	check(shot.aim.y<=game.player.position.y-135,"Flame aims at head height")
+	check(shot.aim.distance_to(game.player.head_position())<.01,"Flame aims at current rendered head")
 	var release_aim: Vector2 = shot.aim
 	game.player.position.x += 35
 	game._update_drone_bolts(.1)
@@ -69,9 +69,19 @@ func run() -> void:
 				game.fire_drake_flame(drake)
 				for frame in fps*2:
 					game._update_drone_bolts(1.0/fps)
-				var expected := 100 if game.player.crouching else 70
+				var expected := 70
 				check(game.player.health==expected,"Flame %s at %d FPS, side %s" % [pose,fps,side])
 				game.drone_bolts.clear()
+				var blue = game.enemies[1]
+				blue.position = drake.position
+				blue.facing = drake.facing
+				game.player.health = 100
+				game.fire_bullet(blue)
+				for frame in fps*2:
+					game._physics_process(1.0/fps)
+				var rifle_health := 100 if game.player.in_cover else 87
+				check(game.player.health==rifle_health,"Blue rifle %s at %d FPS, side %s" % [pose,fps,side])
+				game.bullets.clear()
 	game.player.position = Vector2(2000,480)
 	game.player.crouching = false
 	game.player.in_cover = false

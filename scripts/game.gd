@@ -277,6 +277,7 @@ func _physics_process(dt: float) -> void:
 				continue
 			var height := 103.0 if target.crouching else 140.0
 			var box := Rect2(target.position-Vector2(23,height),Vector2(46,height))
+			if target==player: box = player.projectile_hit_rect()
 			if target.health > 0 and _segment_hits(previous,b.p,box):
 				b.p = _hit_position(previous,b.p,box)
 				armor_hit = true
@@ -585,7 +586,7 @@ func _update_drone_bolts(dt: float) -> void:
 		bolt.p += bolt.v*dt+Vector2(0,0.5*gravity*dt*dt)
 		bolt.v.y += gravity*dt
 		var consumed := false
-		# Drake breath ignores cover. Its head-height path passes above a crouch.
+		# Drake breath ignores cover and can strike the current crouched pose.
 		if drake_flame:
 			for barrier in barriers:
 				if not barrier.destroyed and _segment_hits(previous,bolt.p,barrier.rect):
@@ -594,8 +595,9 @@ func _update_drone_bolts(dt: float) -> void:
 					consumed = true
 					break
 		if not consumed and player.health > 0 and (drake_flame or not player.in_cover):
-			var height := 103.0 if player.crouching else (175.0 if drake_flame else 140.0)
+			var height := 103.0 if player.crouching else 140.0
 			var box := Rect2(player.position-Vector2(23,height),Vector2(46,height))
+			if drake_flame: box = player.projectile_hit_rect()
 			if _segment_hits(previous,bolt.p,box):
 				bolt.p = _hit_position(previous,bolt.p,box)
 				player.take_damage(30 if drake_flame else 20,Color("ff534b"))
@@ -604,7 +606,7 @@ func _update_drone_bolts(dt: float) -> void:
 				fire_impact(bolt.p)
 				if player.health <= 0:
 					weapon_selecting = false
-					say("DOWN / DOWN crouches under Drake fire. R to retry." if drake_flame else "DOWN / Hold UP under the drones' wind-up. R to retry.")
+					say("DOWN / Move away from Drake fire. R to retry." if drake_flame else "DOWN / Hold UP under the drones' wind-up. R to retry.")
 				consumed = true
 		if not consumed:
 			for rect in platforms:
@@ -631,17 +633,24 @@ func fire_drone(drone: Node2D) -> void:
 	burst(muzzle,Color("ff9e56"),6)
 	sound("enemy")
 
+func drake_projectiles_active(actor: Node,flame: bool) -> bool:
+	var source := actor.get_instance_id()
+	var projectiles: Array = drone_bolts if flame else bullets
+	for projectile in projectiles:
+		if projectile.get("source",0)==source: return true
+	return false
+
 func fire_drake_flame(actor: CharacterBody2D) -> void:
 	if not actor.drake or actor.health<=0 or player.health<=0: return
+	if actor.rifle_recovery>0 or drake_projectiles_active(actor,false): return
 	var origin: Vector2 = actor.mouth_position()
 	var target: Vector2 = player.head_position()
-	# Maintain a standing head-height firing lane if Darkiron is already ducking.
-	target.y = minf(target.y,player.position.y-135)
 	var direction := (target-origin).normalized()
-	drone_bolts.append({"p":origin,"v":direction*480,"life":3.0,"drake":true,"aim":target})
+	drone_bolts.append({"p":origin,"v":direction*480,"life":3.0,"drake":true,"aim":target,"source":actor.get_instance_id()})
+	actor.flame_recovery = actor.ATTACK_SWITCH_GRACE
 	burst(origin,Color("ff9e56"),10)
 	sound("enemy")
-	say("DRAKE FLAME / Hold DOWN to crouch. Cover will not stop the fireball!")
+	say("DRAKE FLAME / Duck after release, then return to cover once the fireball passes.")
 
 func drone_destroyed(drone: Node2D) -> void:
 	var blast := preload("res://scripts/blast_effect.gd").new()
@@ -682,6 +691,8 @@ func respawn() -> void:
 		enemy.grenade_cooldown = rng.randf_range(enemy.GRENADE_INTERVAL,enemy.GRENADE_MAX_INTERVAL)
 		enemy.flame_cooldown = enemy.FLAME_INTERVAL
 		enemy.flame_warning = 0
+		enemy.rifle_recovery = 0
+		enemy.flame_recovery = 0
 		enemy.grenade_warning = 0
 		enemy.noticed_grenade = {}
 		enemy.grenade_reaction = 0
@@ -710,12 +721,18 @@ func _hit_position(a: Vector2,b: Vector2,rect: Rect2) -> Vector2:
 	return point
 
 func fire_bullet(actor: CharacterBody2D) -> void:
-	bullets.append({"p":actor.muzzle(),"v":Vector2(actor.facing*1100,0),"life":1.35,"enemy":actor.enemy})
+	if actor.enemy and actor.drake:
+		if actor.flame_warning>0 or actor.flame_recovery>0 or drake_projectiles_active(actor,true): return
+	var origin: Vector2 = actor.muzzle()
+	var velocity := Vector2(actor.facing*1100,0)
+	if actor.enemy:
+		velocity = (player.projectile_hit_rect().get_center()-origin).normalized()*1100
+	bullets.append({"p":origin,"v":velocity,"life":1.35,"enemy":actor.enemy,"source":actor.get_instance_id()})
+	if actor.enemy and actor.drake: actor.rifle_recovery = actor.ATTACK_SWITCH_GRACE
 	burst(actor.muzzle(),Color("ffb24b"),4)
 	sound("enemy" if actor.enemy else "shot")
 	if not actor.enemy:
 		shake = 2
-		var origin: Vector2 = actor.muzzle()
 		for guard in enemies:
 			var delta: Vector2 = guard.position+Vector2(0,-100)-origin
 			if delta.x*actor.facing<=0 or absf(delta.x)>620 or absf(delta.y)>65: continue

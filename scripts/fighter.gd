@@ -48,8 +48,11 @@ const GRENADE_INTERVAL := 8.0
 const GRENADE_MAX_INTERVAL := 14.0
 const FLAME_INTERVAL := 15.0
 const FLAME_WINDUP := .75
+const ATTACK_SWITCH_GRACE := .65
 var flame_cooldown := FLAME_INTERVAL
 var flame_warning := 0.0
+var rifle_recovery := 0.0
+var flame_recovery := 0.0
 const GRENADE_WINDUP := .65
 var grenade_cooldown := GRENADE_INTERVAL
 var grenade_warning := 0.0
@@ -223,6 +226,9 @@ func can_fire() -> bool:
 		return false
 	if world.has_method("current_weapon") and world.weapon_selecting:
 		return false
+	if enemy and drake:
+		if flame_warning>0 or flame_recovery>0: return false
+		if world.has_method("drake_projectiles_active") and world.drake_projectiles_active(self,true): return false
 	return true
 
 func _end_climb() -> void:
@@ -234,6 +240,12 @@ func _update_enemy(dt: float) -> void:
 	ai_clock += dt
 	grenade_cooldown = maxf(0,grenade_cooldown-dt)
 	flame_cooldown = maxf(0,flame_cooldown-dt)
+	rifle_recovery = maxf(0,rifle_recovery-dt)
+	flame_recovery = maxf(0,flame_recovery-dt)
+	if drake and world.has_method("drake_projectiles_active"):
+		# Start the switch grace after the last projectile has cleared, not at launch.
+		if world.drake_projectiles_active(self,false): rifle_recovery = ATTACK_SWITCH_GRACE
+		if world.drake_projectiles_active(self,true): flame_recovery = ATTACK_SWITCH_GRACE
 	running = false
 	grenade_fleeing = false
 	if _escape_grenade(dt): return
@@ -286,6 +298,10 @@ func _update_enemy(dt: float) -> void:
 				flame_cooldown = FLAME_INTERVAL
 			return
 		if sight and absf(delta.x)>=120 and flame_cooldown<=0 and is_on_floor():
+			# Stop rifle fire while waiting for its previous shots to clear.
+			if rifle_recovery>0:
+				velocity.x = move_toward(velocity.x,0,dt*1000)
+				return
 			flame_warning = FLAME_WINDUP
 			facing = signf(delta.x)
 			velocity.x = 0
@@ -344,7 +360,15 @@ func head_position() -> Vector2:
 	for part in rig.parts:
 		if part.index==0 and part.visible:
 			return part.to_global(Vector2(0,45))
-	return position+Vector2(0,-135)
+	return position+Vector2(0,-103 if crouching else -135)
+
+func projectile_hit_rect() -> Rect2:
+	# Crouching changes the pose, but the rendered helmet is still vulnerable.
+	var head := head_position()-position
+	var height := maxf(103 if crouching else 140,-head.y+20)
+	var left := minf(-23,head.x-18)
+	var right := maxf(23,head.x+18)
+	return Rect2(position+Vector2(left,-height),Vector2(right-left,height))
 
 func mouth_position() -> Vector2:
 	for part in rig.parts:
