@@ -13,6 +13,8 @@ func run() -> void:
 	var game = load("res://main.tscn").instantiate()
 	root.add_child(game)
 	freeze(game)
+	for hunter in game.drones:
+		hunter.advance(4.0)
 	var drone = game.drones[0]
 	for other in game.drones.slice(1): other.health = 0
 	for side in [-1.0,1.0]:

@@ -79,7 +79,7 @@ func _draw() -> void:
 	prop(3,Rect2(2750,525,100,195),Color.WHITE if world.checkpoint_active else Color("576d7c"))
 	label(Vector2(2730,510),"RELAY / CHECKPOINT",12,Color("86e0dc"))
 	prop(0,Rect2(5840,170,290,310))
-	var unlocked: bool = world.seals_broken==2 and world.kills==world.enemies.size()
+	var unlocked: bool = world.seals_broken==2 and world.kills>=world.total_targets and world.relay.destroyed
 	label(Vector2(5860,145),"FURNACE GATE / "+("OPEN" if unlocked else "LOCKED"),14,Color("9ee8df") if unlocked else Color("edba8e"))
 	if not unlocked:
 		for y in range(315,460,24):

@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://cdkfqcx7ssrkj" path="res://scripts/run_bone_adjustments.gd" id="bones"]
 [ext_resource type="Script" uid="uid://bw0ja01khinyg" path="res://scripts/run_pose_controls.gd" id="controls"]
-[ext_resource type="Script" uid="uid://h82v30xreqd1" path="res://scripts/animation_tweaker_preview.gd" id="preview"]
 [ext_resource type="AnimationLibrary" uid="uid://c1wd4rbjd4sq4" path="res://characters/darkiron_animations.res" id="library"]
+[ext_resource type="Script" uid="uid://h82v30xreqd1" path="res://scripts/animation_tweaker_preview.gd" id="preview"]
 
 [node name="DarkironAnimationsTweaker" type="Node2D" unique_id=533674240]
 script = ExtResource("preview")
@@ -19,7 +19,7 @@ libraries/ = ExtResource("library")
 script = ExtResource("bones")
 
 [node name="HipPose" type="Bone2D" parent="Controls/Skeleton2D" unique_id=161588859]
-position = Vector2(-4, -89.99391)
+position = Vector2(-5, -77)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -62,7 +62,8 @@ length = 24.0
 bone_angle = -1.5707958
 
 [node name="LeftShoulderPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso" unique_id=1044606552]
-position = Vector2(10, 10.993912)
+position = Vector2(8, 9)
+rotation = -2.6098685
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -73,10 +74,12 @@ metadata/_edit_lock_ = true
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 35.999996
-bone_angle = 0.45390242
+bone_angle = 0.4539024
 
 [node name="LeftForearmPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso/LeftShoulderPose/LeftShoulder" unique_id=1432829137]
-position = Vector2(32.354736, 15.785141)
+position = Vector2(3.8146973e-06, 19.723083)
+rotation = -0.5317242
+scale = Vector2(0.99999994, 0.99999994)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -90,6 +93,7 @@ length = 30.000004
 bone_angle = -0.4774374
 
 [node name="LeftHandPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso/LeftShoulderPose/LeftShoulder/LeftForearmPose/LeftForearm" unique_id=784872591]
+position = Vector2(-1.9073486e-06, 25)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -103,7 +107,8 @@ length = 24.0
 bone_angle = 1.5707958
 
 [node name="RightShoulderPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso" unique_id=1477679178]
-position = Vector2(-9, 10.993912)
+position = Vector2(-9, 9)
+rotation = -2.3276308
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -111,14 +116,15 @@ bone_angle = 0.0
 metadata/_edit_lock_ = true
 
 [node name="RightShoulder" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso/RightShoulderPose" unique_id=1730306049]
-position = Vector2(-3, 5)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 33.0
-bone_angle = 0.84999996
+bone_angle = 0.8499999
 
 [node name="RightForearmPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso/RightShoulderPose/RightShoulder" unique_id=1588366627]
-position = Vector2(21.779442, 24.792252)
+position = Vector2(0, 24.758827)
+rotation = -0.5784169
+scale = Vector2(0.99999994, 0.99999994)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -129,9 +135,11 @@ metadata/_edit_lock_ = true
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 44.0
-bone_angle = -0.74381
+bone_angle = -0.74380994
 
 [node name="RightHandPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso/RightShoulderPose/RightShoulder/RightForearmPose/RightForearm" unique_id=1667206014]
+position = Vector2(1.9073486e-06, 25.709915)
+scale = Vector2(1.0000001, 1.0000001)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -145,6 +153,9 @@ length = 24.0
 bone_angle = 1.5707958
 
 [node name="WeaponPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/TorsoPose/Torso" unique_id=1161728380]
+position = Vector2(-22, 4)
+rotation = -1.18
+scale = Vector2(0.99999994, 0.99999994)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -158,8 +169,7 @@ length = 24.0
 bone_angle = 0.0
 
 [node name="LeftThighPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip" unique_id=64448446]
-position = Vector2(10, 0)
-rotation = -0.087910965
+rotation = -0.5988681
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -173,9 +183,8 @@ length = 40.0
 bone_angle = 1.5707958
 
 [node name="LeftShinPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/LeftThighPose/LeftThigh" unique_id=774162092]
-position = Vector2(-1.9073486e-06, 40)
-rotation = 0.2946303
-scale = Vector2(0.99999994, 0.99999994)
+position = Vector2(0, 40.000004)
+rotation = 1.4300195
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -189,9 +198,8 @@ length = 40.0
 bone_angle = 1.5707958
 
 [node name="LeftFootPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/LeftThighPose/LeftThigh/LeftShinPose/LeftShin" unique_id=643777015]
-position = Vector2(8.34465e-07, 40)
-rotation = -0.20671932
-scale = Vector2(1.0000001, 1.0000001)
+position = Vector2(1.9073486e-06, 40)
+rotation = -0.8311514
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -205,7 +213,7 @@ length = 24.0
 bone_angle = 0.0
 
 [node name="RightThighPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip" unique_id=733089432]
-rotation = -0.1830482
+rotation = -0.99689794
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -219,8 +227,8 @@ length = 40.0
 bone_angle = 1.5707958
 
 [node name="RightShinPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/RightThighPose/RightThigh" unique_id=343180318]
-position = Vector2(2.861023e-06, 40)
-rotation = 0.3131063
+position = Vector2(3.8146973e-06, 40)
+rotation = 1.2909062
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0
@@ -234,8 +242,8 @@ length = 40.0
 bone_angle = 1.5707958
 
 [node name="RightFootPose" type="Bone2D" parent="Controls/Skeleton2D/HipPose/Hip/RightThighPose/RightThigh/RightShinPose/RightShin" unique_id=371784803]
-position = Vector2(-1.9073486e-06, 40.000004)
-rotation = -0.1300581
+position = Vector2(-9.536743e-07, 40)
+rotation = -0.29400828
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 auto_calculate_length_and_angle = false
 length = 0.0

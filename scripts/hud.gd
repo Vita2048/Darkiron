@@ -6,8 +6,56 @@ var font: Font = ThemeDB.fallback_font
 var elapsed := 0.0
 var frames := 0
 var fps := 0.0
+var pause_controls: Control
+var volume_slider: HSlider
+
+func _ready() -> void:
+	pause_controls = Control.new()
+	pause_controls.position = Vector2(457,464)
+	pause_controls.size = Vector2(526,45)
+	pause_controls.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pause_controls.hide()
+	add_child(pause_controls)
+	volume_slider = HSlider.new()
+	volume_slider.name = "GameVolume"
+	volume_slider.size = Vector2(526,40)
+	volume_slider.min_value = 0
+	volume_slider.max_value = 100
+	volume_slider.step = 1
+	volume_slider.tooltip_text = "Game volume. Drag or use Left / Right. Saved automatically."
+	volume_slider.accessibility_name = "Game volume"
+	volume_slider.add_theme_stylebox_override("slider",_slider_style(Color("293c51")))
+	volume_slider.add_theme_stylebox_override("grabber_area",_slider_style(Color("bf926a")))
+	volume_slider.add_theme_stylebox_override("grabber_area_highlight",_slider_style(Color("edbd8a")))
+	pause_controls.add_child(volume_slider)
+	volume_slider.value_changed.connect(_volume_changed)
+
+func _slider_style(color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4
+	style.corner_radius_bottom_right = 4
+	return style
+
+func _volume_changed(value: float) -> void:
+	world.set_master_volume(value/100.0)
+	queue_redraw()
+
+func _sync_pause_controls() -> void:
+	var was_visible := pause_controls.visible
+	pause_controls.visible = world.paused
+	volume_slider.set_value_no_signal(0 if world.muted else world.master_volume*100)
+	if world.paused and not was_visible:
+		volume_slider.grab_focus()
+	elif not world.paused and was_visible:
+		volume_slider.release_focus()
 
 func _process(_dt: float) -> void:
+	_sync_pause_controls()
 	elapsed += _dt
 	frames += 1
 	if elapsed >= 0.5:
@@ -46,7 +94,7 @@ func _draw() -> void:
 			text(Vector2(770,72+18+i*21),world.weapon_name(world.weapons[i]),13 if picked else 12,Color("f1d5b4") if picked else Color("9fb2c5"))
 		text(Vector2(770,72+panel_h+13),"[ ]  BROWSE      ENTER  CONFIRM",11,Color("8b9bad"))
 	text(Vector2(1125,37),"BLAST SEALS / "+str(world.seals_broken)+" OF 2",12,Color("8b9bad"))
-	text(Vector2(1125,65),str(world.kills)+" / "+str(world.total_targets)+" TARGETS",16,Color("e7b680"))
+	text(Vector2(1125,65),str(world.kills)+" / "+str(world.total_targets)+" OBJECTIVES",16,Color("e7b680"))
 	text(Vector2(1125,91),"%d FPS  /  %.1f ms" % [roundi(fps),1000.0/maxf(fps,1)],13,Color("8fe3bc"))
 	# Bottom panel stays out of the traversable portion of the scene.
 	draw_rect(Rect2(0,814,1440,86),Color(0.025,0.044,0.072,0.96))
@@ -60,7 +108,7 @@ func _draw() -> void:
 	if world.weapon_selecting:
 		prompt = "Choose a weapon: [ and ] to browse, ENTER to confirm."
 	elif world.player.position.x<1100:
-		prompt = "Cross the yard. UP takes cover from the drone patrol. The rifle waits past the abyss."
+		prompt = "Shoot the relay core when its shutter lifts. UP takes cover from hunters."
 	elif world.player.position.x<2200 and world.seals_broken==0:
 		prompt = "Collect bombs from the amber chest. Throw G near the blast seal."
 	elif world.player.position.x<4300:
@@ -86,7 +134,17 @@ func _draw() -> void:
 		draw_rect(Rect2(at.x-65,at.y-26,130,5),Color("293c51"))
 		draw_rect(Rect2(at.x-65,at.y-26,130*world.player.bow_charge,5),Color("5cdcff"))
 		text(Vector2(at.x-65,at.y-32),"DRAW %d%%" % int(world.player.bow_charge*100),12,Color("83def7"))
-	if world.completed or world.player.health<=0 or world.paused:
+	if world.paused:
+		draw_rect(Rect2(0,104,1440,710),Color(0.02,0.035,0.06,0.84))
+		draw_rect(Rect2(400,290,640,350),Color("121f2e"))
+		draw_line(Vector2(400,290),Vector2(1040,290),Color("d7a477"),2)
+		text(Vector2(457,355),"PAUSED",32,Color("f1d5b4"))
+		text(Vector2(457,391),"Take a breath. Your journey waits.",17,Color("acbaca"))
+		text(Vector2(457,447),"GAME VOLUME",14,Color("d5deea"))
+		var percent := 0 if world.muted else roundi(world.master_volume*100)
+		text(Vector2(932,447),"%d%%" % percent,20,Color("f1d5b4"))
+		text(Vector2(457,600),"ESC  RESUME   /   R  RESTART",18,Color("e8b47e"))
+	elif world.completed or world.player.health<=0:
 		draw_rect(Rect2(0,104,1440,710),Color(0.02,0.035,0.06,0.76))
 		draw_rect(Rect2(400,290,640,277),Color("121f2e"))
 		draw_line(Vector2(400,290),Vector2(1040,290),Color("d7a477"),2)

@@ -89,3 +89,21 @@ The generated `assets/ember-drone.png` is animated with banking, cyan exhaust, f
 The original passive target remains available through `debug_bow.tscn`. Run `--script res://tests/drone_range.gd` for drone movement, live cover protection, damage/death, shot restrictions, pause, reset, sensor/body collisions and victory checks. A graphical run captures `preview-drone-cover.png` and `preview-drone-encounter.png`.
 
 Drone exhaust now emits separately from both rear engine nozzles and follows banking. Enemy projectiles are textured fireballs with ember wakes and small Raptor explosions at the actual armor or cover contact point. Holding Up uses the existing gun-cover stance without the extra crouch.
+
+## Outer yard: hunter relay
+
+The main game's three hunters now approach from the distant background, scaling up through the haze before attacking. Their pulsing power links lead to a relay across the first abyss. Killing the last hunter triggers a short recharge and three replacements; drone kills do not count toward the gate objective.
+
+Shoot the cyan core with the bow while the guillotine shutter is raised. The 6.5-second cycle gives a 1.4-second charge warning, a 0.55-second split-door opening, a 0.55-second open hold and a fast 0.18-second closing slam. The relay sits beside the right-hand ladder; hunters patrol above the firing lane. Its generated brass-and-steel housing and opposing armored shutters replace the exposed rails, and only the central reactor lens accepts a killing hit. Openings repeat even while hunters remain alive. One core hit destroys the relay, clears hostile fire and drops all surviving hunters. Relay destruction counts as one objective alongside the five guards, persists through checkpoint recovery, and is required at the furnace gate. R resets everything.
+
+Bow releases now use an ElevenLabs-generated natural bowstring/arrow foley sample with subtle pitch variation. Relay charging and shutter cues also use generated samples. Assets and prompts are in `assets/audio`; no API key is needed to play.
+
+Verify the encounter with `--headless --path . --script res://tests/yard_relay.gd`, and existing drone combat with `--script res://tests/platform_drone_combat.gd`. A graphical relay test with `-- --visual` saves scene captures under `.runtime/`.
+
+### Sound and shutter tuning
+
+Press Esc in the main game to open the pause menu's Game Volume slider. Drag it or use Left/Right to adjust all game audio from 0–100%. Changes save automatically to `user://settings.cfg` and restore on the next launch or level restart. M toggles mute and saves that state too; moving the slider restores sound. The per-effect values below set the mix underneath this overall volume.
+
+At the top of `scripts/game.gd`, change `BOW_VOLUME_DB` (-20 dB), `SHUTTER_VOLUME_DB` (-24 dB), or `CHARGE_VOLUME_DB` (-18 dB). More negative values are quieter; reduce by another 3 to 6 dB for a gentler mix.
+
+At the top of `scripts/yard_relay.gd`, `OPEN_START` is the cycle time when the doors are fully open, `OPEN_END` starts closing, and `PERIOD` is the entire repeat cycle. Keep `0 < OPEN_START < OPEN_END < PERIOD`. The current user-tuned values are preserved at 0.05 / 2.50 / 6.5 seconds. `OPENING_DURATION` and `CLOSING_DURATION` control motion; an early open time automatically shortens the initial lift. Restart the game after editing.

@@ -8,9 +8,16 @@ const LADDER_X := 1250.0
 const LEVEL_END := 6300.0
 const ARROW_GRAVITY := 260.0
 const DRONE_BOLT_GRAVITY := 220.0
+# Audio tuning in decibels: more negative = quieter. -6 dB halves amplitude.
+const BOW_VOLUME_DB := -22.0
+const SHUTTER_VOLUME_DB := -30.0
+const CHARGE_VOLUME_DB := -18.0
+const HOUSING_HIT_VOLUME_DB := -22.0
 var player: CharacterBody2D
 var enemies: Array = []
 var drones: Array = []
+var relay: Node2D
+var reinforcement_delay := -1.0
 var drone_bolts: Array = []
 var drone_embers: Array = []
 var arrows: Array = []
@@ -26,7 +33,7 @@ var caches := [{"p":Vector2(1550,480),"taken":false},{"p":Vector2(3780,720),"tak
 var meds := [{"p":Vector2(2650,720),"taken":false},{"p":Vector2(3750,480),"taken":false},{"p":Vector2(4950,720),"taken":false}]
 var checkpoint := Vector2(260,720)
 var checkpoint_active := false
-var notice := "THE CINDERWORKS / Plasma bow armed. Cache on the upper gallery."
+var notice := "THE OUTER YARD / Hunters inbound. Follow their power links to the relay."
 var notice_time := 6.0
 var seals_broken := 0
 # Legacy single-barrier references retained for existing diagnostic scripts.
@@ -44,6 +51,9 @@ var drone_damage_flash := 0.0
 var completed := false
 var paused := false
 var muted := false
+var master_volume := 1.0
+var settings_path := "user://settings.cfg"
+var audio_settings_saved := true
 # Weapon system: the plasma bow starts holstered-in-hand; the hybrid rifle is
 # recovered past the yard abyss and armed from the [ ] / ENTER selector.
 var weapons: Array = ["BOW"]
@@ -85,6 +95,7 @@ func _ready() -> void:
 	fire_texture = Flame.flame_texture()
 	heat_glow = Flame.glow_texture()
 	rng.seed = 82491
+	_load_audio_settings()
 	_setup_input()
 	for rect in platforms:
 		_make_solid(rect)
@@ -110,14 +121,18 @@ func _ready() -> void:
 		enemy.position = spawn
 		add_child(enemy)
 		enemies.append(enemy)
-	# The yard sentinel is replaced by the debug drone gauntlet's hunters.
-	for i in 3:
-		var drone: Node2D = Drone.new()
-		drone.world = self
-		drone.slot = i
-		add_child(drone)
-		drones.append(drone)
-	total_targets = enemies.size()+drones.size()
+	relay = preload("res://scripts/yard_relay.gd").new()
+	relay.world = self
+	relay.position = Vector2(1080,620)
+	add_child(relay)
+	# Keep arrows visible in front of the housing until their tips make contact.
+	var arrow_layer := Node2D.new()
+	arrow_layer.name = "ArrowLayer"
+	arrow_layer.z_index = 2
+	arrow_layer.draw.connect(_draw_arrows.bind(arrow_layer))
+	add_child(arrow_layer)
+	_spawn_drone_wave()
+	total_targets = enemies.size()+1
 	camera = Camera2D.new()
 	camera.position = Vector2(720,450)
 	# Preserve level coordinates while drawing the full scene at the HD canvas size.
@@ -198,7 +213,8 @@ func _process(dt: float) -> void:
 		paused = not paused
 	if Input.is_action_just_pressed("mute"):
 		muted = not muted
-		AudioServer.set_bus_mute(0,muted)
+		_apply_master_volume()
+		_save_audio_settings()
 	if not paused:
 		clock += dt
 		notice_time = maxf(0,notice_time-dt)
@@ -206,6 +222,7 @@ func _process(dt: float) -> void:
 	shake = move_toward(shake,0,dt*23)
 	camera.position = Vector2(camera_x+720,450) + Vector2(rng.randf_range(-shake,shake),rng.randf_range(-shake,shake))
 	queue_redraw()
+	get_node("ArrowLayer").queue_redraw()
 	if capture_mode and clock > 1.8 and not captured:
 		captured = true
 		await RenderingServer.frame_post_draw
@@ -294,7 +311,7 @@ func _physics_process(dt: float) -> void:
 		p.life -= dt
 		if p.life <= 0:
 			particles.remove_at(i)
-	if player.health>0 and player.position.x>5940 and player.position.y<500 and seals_broken==2 and kills>=total_targets:
+	if player.health>0 and player.position.x>5940 and player.position.y<500 and seals_broken==2 and kills>=total_targets and relay.destroyed:
 		completed = true
 		sound("win")
 
@@ -337,7 +354,7 @@ func fire_arrow(hero: CharacterBody2D,power := 1.0) -> void:
 	var nock: Vector2 = hero.rig.to_global(bow.nock())
 	arrows.append({"p":nock+direction*110.0,"v":direction*lerpf(640.0,2080.0,power),"life":5.0,"stuck":false})
 	burst(nock+direction*100,Color("6fe3ff"),5)
-	sound("shot")
+	sound("bow")
 	shake = 1.5
 
 func segment_entry(a: Vector2,b: Vector2,box: Rect2) -> float:
@@ -408,8 +425,38 @@ func _update_pickups(_dt: float) -> void:
 func _flash_decay(dt: float) -> void:
 	drone_damage_flash = maxf(0,drone_damage_flash-dt)
 
+func _spawn_drone_wave() -> void:
+	for old in drones: old.queue_free()
+	drones.clear()
+	for i in 3:
+		var drone := Drone.new()
+		drone.world = self
+		drone.slot = i
+		add_child(drone)
+		drones.append(drone)
+
 func _update_drones(dt: float) -> void:
+	if player.health <= 0: return
+	relay.advance(dt)
+	if reinforcement_delay >= 0 and not relay.destroyed:
+		reinforcement_delay -= dt
+		if reinforcement_delay < 0:
+			_spawn_drone_wave()
 	for drone in drones: drone.advance(dt)
+
+func destroy_yard_relay() -> void:
+	kills += 1
+	reinforcement_delay = -1
+	drone_bolts.clear()
+	for drone in drones: drone.power_down()
+	var blast := preload("res://scripts/blast_effect.gd").new()
+	blast.world = self
+	blast.position = relay.position
+	add_child(blast)
+	burst(relay.position,Color("7eeaff"),65)
+	shake = 12
+	sound("boom")
+	say("POWER SEVERED / Hunters offline. Cross the abyss and recover the rifle.")
 
 func _update_arrows(dt: float) -> void:
 	for i in range(arrows.size()-1,-1,-1):
@@ -427,7 +474,7 @@ func _update_arrows(dt: float) -> void:
 		var victim: Node2D
 		var critical := false
 		for drone in drones:
-			if drone.health <= 0: continue
+			if drone.health <= 0 or drone.arrival < 1.0: continue
 			# Test in artwork space so the sensor turns with the drone.
 			var from: Vector2 = drone.to_local(previous)
 			var to: Vector2 = drone.to_local(arrow.p)
@@ -437,6 +484,12 @@ func _update_arrows(dt: float) -> void:
 				nearest = hull
 				victim = drone
 				critical = eye != INF
+		var relay_hit: float = relay.arrow_entry(previous,arrow.p)
+		if relay_hit < nearest:
+			arrow.p = previous.lerp(arrow.p,relay_hit)
+			relay.receive_arrow(arrow.p)
+			arrows.remove_at(i)
+			continue
 		if victim:
 			arrow.p = previous.lerp(arrow.p,nearest)
 			victim.hit(25.0 if critical else 18.75,arrow.v)
@@ -539,7 +592,6 @@ func fire_drone(drone: Node2D) -> void:
 	sound("enemy")
 
 func drone_destroyed(drone: Node2D) -> void:
-	kills += 1
 	var blast := preload("res://scripts/blast_effect.gd").new()
 	blast.world = self
 	blast.position = drone.position
@@ -550,7 +602,9 @@ func drone_destroyed(drone: Node2D) -> void:
 	shake = 8
 	sound("boom")
 	if drones.all(func(d): return d.health<=0):
-		say("YARD CLEAR / All hunter drones down. Cross to the galleries.")
+		reinforcement_delay = 1.8
+		relay.restart_charge()
+		say("RELAY RECHARGING / Reinforcements inbound. Shoot the core when the shutter lifts.")
 	else:
 		say("HUNTER DESTROYED / %d REMAINING" % drones.filter(func(d): return d.health>0).size())
 
@@ -569,10 +623,10 @@ func respawn() -> void:
 	player.rig.position = Vector2.ZERO
 	player.rig.modulate = Color.WHITE
 	bullets.clear()
+	arrows.clear()
 	grenades.clear()
 	for enemy in enemies:
 		enemy.cooldown = 2.0
-		enemy.aim_charge = 0
 	drone_bolts.clear()
 	drone_damage_flash = 0
 	camera_x = clampf(checkpoint.x-500,0,LEVEL_END-1440)
@@ -690,10 +744,6 @@ func _draw() -> void:
 		var color: Color = p.c
 		color.a = minf(1,p.life*2)
 		draw_line(p.p,p.p-p.v*0.023,color,p.s,true)
-	for arrow in arrows:
-		if not arrow.stuck:
-			draw_line(arrow.p,arrow.p-arrow.v.normalized()*42,Color(0.2,0.7,1,0.2),5,true)
-		plasma_arrow(arrow.p,arrow.v.angle())
 	for ember in drone_embers:
 		var fade: float = ember.life/0.32
 		draw_circle(ember.p,2.5*fade,Color(1,0.35+fade*0.4,0.08,fade))
@@ -711,14 +761,20 @@ func _draw() -> void:
 		var dust := Vector2(fposmod(i*159.7+clock*(8+i%3*7),1500)+camera_x,180+fposmod(i*67.2-clock*5,580))
 		draw_circle(dust,1.3,Color(0.78,0.85,0.95,0.19+sin(clock+i)*0.1))
 
-func plasma_arrow(tip: Vector2,angle: float) -> void:
-	draw_set_transform(tip,angle)
-	draw_line(Vector2(-110,0),Vector2(-10,0),Color("6f91a6"),2,true)
-	preload("res://scripts/arrow_feathers.gd").draw_feathers(self,Vector2(-110,0))
-	draw_texture_rect(bullet_glow,Rect2(-30,-24,48,48),false)
-	draw_colored_polygon(PackedVector2Array([Vector2(3,0),Vector2(-14,-5),Vector2(-10,0),Vector2(-14,5)]),Color("7deaff"))
-	draw_line(Vector2(-11,0),Vector2(2,0),Color.WHITE,2,true)
-	draw_set_transform(Vector2.ZERO)
+func _draw_arrows(canvas: Node2D) -> void:
+	for arrow in arrows:
+		if not arrow.stuck:
+			canvas.draw_line(arrow.p,arrow.p-arrow.v.normalized()*42,Color(0.2,0.7,1,0.2),5,true)
+		plasma_arrow(arrow.p,arrow.v.angle(),canvas)
+
+func plasma_arrow(tip: Vector2,angle: float,canvas: Node2D) -> void:
+	canvas.draw_set_transform(tip,angle)
+	canvas.draw_line(Vector2(-110,0),Vector2(-10,0),Color("6f91a6"),2,true)
+	preload("res://scripts/arrow_feathers.gd").draw_feathers(canvas,Vector2(-110,0))
+	canvas.draw_texture_rect(bullet_glow,Rect2(-30,-24,48,48),false)
+	canvas.draw_colored_polygon(PackedVector2Array([Vector2(3,0),Vector2(-14,-5),Vector2(-10,0),Vector2(-14,5)]),Color("7deaff"))
+	canvas.draw_line(Vector2(-11,0),Vector2(2,0),Color.WHITE,2,true)
+	canvas.draw_set_transform(Vector2.ZERO)
 
 func _glow(at: Vector2,color: Color,radius: float) -> void:
 	for i in range(5,0,-1):
@@ -729,6 +785,32 @@ func _glow(at: Vector2,color: Color,radius: float) -> void:
 
 func _world_text(at: Vector2,value: String,size: int,color: Color) -> void:
 	draw_string(font,at,value,HORIZONTAL_ALIGNMENT_LEFT,-1,size,color)
+
+func _load_audio_settings() -> void:
+	var config := ConfigFile.new()
+	if config.load(settings_path) == OK:
+		var stored: Variant = config.get_value("audio","volume",1.0)
+		if (stored is float or stored is int) and is_finite(float(stored)):
+			master_volume = clampf(float(stored),0,1)
+		muted = config.get_value("audio","muted",false) == true
+	_apply_master_volume()
+
+func _apply_master_volume() -> void:
+	AudioServer.set_bus_volume_linear(0,master_volume)
+	AudioServer.set_bus_mute(0,muted or master_volume <= 0)
+
+func set_master_volume(value: float) -> void:
+	master_volume = clampf(value,0,1)
+	muted = false
+	_apply_master_volume()
+	_save_audio_settings()
+
+func _save_audio_settings() -> void:
+	var config := ConfigFile.new()
+	config.load(settings_path)
+	config.set_value("audio","volume",master_volume)
+	config.set_value("audio","muted",muted)
+	audio_settings_saved = config.save(settings_path) == OK
 
 func _setup_audio() -> void:
 	for kind in ["shot","enemy","jump","boom","hurt","fall","win"]:
@@ -754,12 +836,23 @@ func _setup_audio() -> void:
 		stream.data = bytes
 		audio[kind] = stream
 
+	audio["bow"] = load("res://assets/audio/bow-release.wav")
+	audio["shutter"] = load("res://assets/audio/relay-shutter.wav")
+	audio["charge"] = load("res://assets/audio/relay-charge.wav")
+	# Reuse the body-hit cue at a softer level for non-damaging armor contacts.
+	audio["housing_hit"] = audio["hurt"]
+
 func sound(kind: String) -> void:
 	if not audio.has(kind):
 		return
 	var voice := AudioStreamPlayer.new()
 	voice.stream = audio[kind]
+	if kind == "bow": voice.pitch_scale = rng.randf_range(.96,1.04)
 	voice.volume_db = -14 if kind == "enemy" else -10
+	if kind == "bow": voice.volume_db = BOW_VOLUME_DB
+	elif kind == "shutter": voice.volume_db = SHUTTER_VOLUME_DB
+	elif kind == "charge": voice.volume_db = CHARGE_VOLUME_DB
+	elif kind == "housing_hit": voice.volume_db = HOUSING_HIT_VOLUME_DB
 	add_child(voice)
 	voice.finished.connect(voice.queue_free)
 	voice.play()

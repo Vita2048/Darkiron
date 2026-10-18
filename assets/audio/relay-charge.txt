@@ -1,0 +1,2 @@
+A restrained industrial power relay charging, rising electrical transformer hum with a metallic latch click at the beginning, tense short mechanical warning cue, no music or voices.
+ElevenLabs eleven_text_to_sound_v2; prompt influence 0.65
