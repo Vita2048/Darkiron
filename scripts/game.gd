@@ -305,7 +305,7 @@ func ladder_at(at: Vector2) -> Vector3:
 	return Vector3.ZERO
 
 func weapon_name(kind: String) -> String:
-	return "PLASMA BOW" if kind == "BOW" else "HYBRID RIFLE"
+	return "BOW" if kind == "BOW" else "RIFLE"
 
 func current_weapon() -> String:
 	return weapons[weapon_index]
